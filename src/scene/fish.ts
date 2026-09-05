@@ -86,26 +86,37 @@ export function koi(variant: KoiVariant = 'kohaku'): string {
 }
 
 export function dojo(): string {
-  const seg = (x0: number, x1: number, extra = '') =>
-    rect(x0, 26, x1 - x0, 28, v('loach'), 'rx="6"') +
-    rect(x0, 44, x1 - x0, 6, v('loach-belly'), 'opacity=".8"') +
-    extra
   const speck = (x: number, y: number) => circle(x, y, 1.8, v('loach-spot'))
+  const belly = (x0: number, x1: number) =>
+    rect(x0, 43, x1 - x0, 7, v('loach-belly'), 'rx="3" opacity=".8"')
+  // Head cap, then three overlapping body segments that taper toward a small rounded tail.
   const head =
-    path('M150 26H184C194 26 198 34 198 40C198 46 194 54 184 54H150Z', v('loach')) +
-    rect(150, 44, 42, 6, v('loach-belly'), 'opacity=".8"') +
+    path('M150 24C170 22 186 24 194 32C199 37 199 43 194 48C186 56 170 58 150 56Z', v('loach')) +
+    belly(152, 190) +
     circle(184, 34, 2.5, v('koi-ink')) +
     path(
-      'M196 42l10-8M196 44l12 0M196 46l10 8M192 46l8 10M192 40l8-10M190 44l-2 12',
+      'M196 40l12-8M197 42l14 0M196 44l12 8M190 48l6 12M190 32l6-12M187 46l-1 12',
       'none',
-      `stroke="${v('loach-belly')}" stroke-width="1.5" stroke-linecap="round"`,
+      `stroke="${v('loach-belly')}" stroke-width="1.5" stroke-linecap="round" opacity=".9"`,
     ) +
-    speck(160, 32) +
-    speck(172, 30)
+    speck(160, 31) +
+    speck(174, 30)
+  const seg2 =
+    path('M98 26C116 22 140 22 158 26L158 54C140 58 116 58 98 54Z', v('loach')) +
+    belly(100, 156) +
+    path('M110 26C118 17 134 17 142 26Z', v('loach-belly'), 'opacity=".9"') +
+    speck(118, 31) +
+    speck(134, 35) +
+    speck(108, 38)
+  const seg3 =
+    path('M48 29C66 25 90 25 106 27L106 53C90 55 66 55 48 51Z', v('loach')) +
+    belly(50, 104) +
+    speck(64, 33) +
+    speck(84, 30)
   const tail =
-    rect(24, 28, 28, 24, v('loach'), 'rx="6"') +
-    ellipse(14, 40, 12, 13, v('loach')) +
-    rect(24, 44, 28, 5, v('loach-belly'), 'opacity=".8"')
+    path('M22 33C32 30 44 29 56 30L56 50C44 51 32 50 22 47Z', v('loach')) +
+    ellipse(14, 40, 11, 12, v('loach')) +
+    belly(24, 54)
   return `<g class="fish dojo" data-species="dojo">
     ${pivot(
       150,
@@ -116,19 +127,7 @@ export function dojo(): string {
           100,
           40,
           'rig-s2',
-          seg(
-            100,
-            152,
-            path('M110 26C118 18 134 18 142 26Z', v('loach-belly'), 'opacity=".9"') +
-              speck(118, 32) +
-              speck(134, 36),
-          ) +
-            pivot(
-              50,
-              40,
-              'rig-s3',
-              seg(50, 102) + speck(64, 34) + speck(84, 31) + pivot(24, 40, 'rig-tail', tail),
-            ),
+          seg2 + pivot(50, 40, 'rig-s3', seg3 + pivot(24, 40, 'rig-tail', tail)),
         ),
     )}
   </g>`

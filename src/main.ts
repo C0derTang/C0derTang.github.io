@@ -121,7 +121,25 @@ const ro = new ResizeObserver((entries) => {
 ro.observe(stageAir)
 director.start()
 
-// Dev hooks: ?t=0.35 seeks, &freeze holds time, ?debug shows the HUD.
+// Dev hooks: ?t=0.35 seeks, &freeze holds time, ?debug shows the HUD,
+// ?preview=<layerId> shows one layer at scale 1 with its viewBox edge for bleed checks.
+const preview = params.get('preview')
+if (preview) {
+  for (const L of [...air.layers, ...water.layers]) {
+    L.el.style.display = L.id === preview ? '' : 'none'
+    if (L.id === preview) {
+      L.range = [0, 1]
+      L.fade = undefined
+      L.restCz = 0
+      L.depth = 0
+      const svgEl = L.el.querySelector('svg')
+      svgEl?.insertAdjacentHTML(
+        'beforeend',
+        '<rect x="0" y="0" width="1600" height="1200" fill="none" stroke="#f0f" stroke-width="4"/>',
+      )
+    }
+  }
+}
 const tParam = params.get('t')
 if (params.has('freeze')) director.freeze(true)
 if (tParam !== null) {
