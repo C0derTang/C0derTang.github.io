@@ -1,0 +1,138 @@
+.stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  contain: strict;
+  touch-action: pan-y;
+}
+#stage-air {
+  z-index: 0;
+}
+#stage-water {
+  z-index: 1;
+  visibility: hidden;
+}
+.waterline {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 0;
+  z-index: 2;
+  overflow: visible;
+  pointer-events: none;
+  visibility: hidden;
+}
+#glow,
+#grade,
+#vignette,
+#grain {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+#overlay {
+  z-index: 4;
+}
+
+.world {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.layer {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  transform-origin: var(--vx) var(--vy);
+  backface-visibility: hidden;
+}
+.layer[data-raster='locked'] {
+  will-change: transform, opacity;
+}
+.layer > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  display: block;
+}
+.panel {
+  position: absolute;
+  overflow: visible;
+}
+.panel > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  display: block;
+}
+
+.sky {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    var(--sky-top) 0%,
+    var(--sky-mid) 45%,
+    var(--sky-low) 68%,
+    #c9cfd0 100%
+  );
+}
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    var(--uw-surface) 0%,
+    var(--uw-mid) 42%,
+    var(--uw-deep) 75%,
+    var(--uw-abyss) 100%
+  );
+}
+.fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+/* grade stack */
+#glow {
+  background: radial-gradient(
+    circle at var(--glow-x) var(--glow-y),
+    var(--glow-color) 0%,
+    transparent 55%
+  );
+  opacity: var(--glow-strength);
+  mix-blend-mode: screen;
+}
+#grade {
+  background: var(--grade-tint);
+  opacity: var(--grade-strength);
+  mix-blend-mode: multiply;
+}
+#vignette {
+  background: radial-gradient(ellipse at 50% 50%, transparent 55%, #0b0f12 130%);
+  opacity: var(--vignette);
+}
+#grain {
+  background-image: var(--grain-tile);
+  background-size: 256px 256px;
+  opacity: var(--grain);
+  mix-blend-mode: overlay;
+}
+html[data-tier='low'] #glow,
+html[data-tier='low'] #grade,
+html[data-tier='low'] #grain {
+  mix-blend-mode: normal;
+}
+html[data-tier='low'] #grain {
+  display: none;
+}

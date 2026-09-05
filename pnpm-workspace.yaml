@@ -1,0 +1,6 @@
+# pnpm settings only (no workspace packages). pnpm 11+ ignores non-auth settings in .npmrc.
+engineStrict: true
+autoInstallPeers: true
+strictPeerDependencies: false
+minimumReleaseAge: 1440
+onlyBuiltDependencies: []

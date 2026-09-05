@@ -1,0 +1,94 @@
+:root {
+  /* sky / rain */
+  --sky-top: #6d7d8c;
+  --sky-mid: #8d9aa5;
+  --sky-low: #b4bcc1;
+  --rain-streak: #dfe6ea;
+  --mist: #c5cdd0;
+
+  /* foliage */
+  --green-deep: #2f4a3e;
+  --green-mid: #4d6b4f;
+  --green-light: #7f9a5d;
+  --green-far: #6c8a86;
+
+  /* wood, thatch, plaster */
+  --wood-dark: #3a2a22;
+  --wood-mid: #6b4a36;
+  --wood-light: #9a7451;
+  --thatch: #6f6048;
+  --thatch-dark: #4f4536;
+  --thatch-light: #8a7a5c;
+  --plaster: #bdb097;
+  --plaster-int: #a89c85;
+
+  /* interior */
+  --tatami: #b3aa6c;
+  --tatami-shadow: #8c8552;
+  --tatami-border: #3f3a3a;
+  --paper: #f1e9d6;
+  --paper-lit: #f7e6c0;
+  --paper-cool: #d9d5c8;
+  --lamp: #f2b45a;
+  --lamp-glow: #e89a3c;
+  --ember: #d9633a;
+  --indigo-cloth: #3f4a6b;
+
+  /* paddy */
+  --paddy-reflect: #9aa8a6;
+  --paddy-water: #5f7a76;
+  --paddy-water-deep: #3e5753;
+  --mud: #4a3d2e;
+  --mud-light: #6a5a44;
+
+  /* underwater ramp (top -> bottom) */
+  --uw-surface: #6fa39a;
+  --uw-mid: #2f6b6a;
+  --uw-deep: #1c3f4e;
+  --uw-abyss: #142a3a;
+  --uw-ray: #cfe8dd;
+  --uw-stem: #3f6d63;
+  --uw-stem-near: #2b5b56;
+
+  /* fish */
+  --koi-white: #f2ece0;
+  --koi-orange: #e07a3a;
+  --koi-orange-deep: #b8532a;
+  --koi-ink: #2a2a2e;
+  --loach: #4d4a3a;
+  --loach-belly: #9c8f6c;
+  --loach-spot: #2f2c22;
+  --funa: #7d8a70;
+  --funa-belly: #c7cbb5;
+  --funa-fin: #5e6a55;
+
+  /* UI */
+  --ink: #1f2426;
+  --ui-text: #f4f1ea;
+  --ui-text-muted: rgba(244, 241, 234, 0.72);
+  --ui-scrim: rgba(24, 30, 34, 0.55);
+  --ui-hairline: rgba(255, 255, 255, 0.14);
+  --accent: #d9633a;
+
+  /* grade stack (written by the director on the stage; defaults = exterior beat) */
+  --grade-tint: #6f8090;
+  --grade-strength: 0.25;
+  --glow-color: #f2b45a;
+  --glow-x: 50%;
+  --glow-y: 50%;
+  --glow-strength: 0;
+  --vignette: 0.25;
+  --fog-color: #c5cdd0;
+  --fog-far: 0.55;
+  --fog-mid: 0.3;
+  --fog-near: 0.08;
+  --grain: 0.07;
+
+  /* layout */
+  --scroll-len: 800;
+  --vx: 50%;
+  --vy: 58%;
+
+  --font-display: 'Shippori Mincho', Georgia, 'Times New Roman', serif;
+  --font-body: 'Zen Kaku Gothic New', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}

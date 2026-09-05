@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Christopher Tang</title>
+    <meta name="description" content="Christopher Tang — a rainy rice farm you scroll through." />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#142a3a" />
+    <link rel="canonical" href="https://c0dertang.github.io/" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://c0dertang.github.io/" />
+    <meta property="og:title" content="Christopher Tang" />
+    <meta property="og:description" content="A rainy rice farm you scroll through." />
+    <meta property="og:image" content="https://c0dertang.github.io/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script>
+      document.documentElement.classList.add('js')
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#overlay">Skip to content</a>
+
+    <!-- Fixed viewport-sized stages. Everything visual lives here; scrolling never moves them. -->
+    <div id="stage-air" class="stage" aria-hidden="true">
+      <div class="sky"></div>
+      <div class="world"></div>
+      <canvas class="fx fx-rain"></canvas>
+    </div>
+    <div id="stage-water" class="stage" aria-hidden="true">
+      <div class="backdrop"></div>
+      <div class="world"></div>
+      <canvas class="fx fx-bubbles"></canvas>
+    </div>
+    <div class="waterline" aria-hidden="true"></div>
+
+    <!-- Fixed color-grade stack -->
+    <div id="glow" aria-hidden="true"></div>
+    <div id="grade" aria-hidden="true"></div>
+    <div id="vignette" aria-hidden="true"></div>
+    <div id="grain" aria-hidden="true"></div>
+
+    <!-- Static, crawlable copy. Each slot is shown/hidden by its beat. -->
+    <main id="overlay">
+      <div class="mark" data-ui="mark">Christopher Tang</div>
+      <div class="hint" data-ui="hint" aria-hidden="true"><span>scroll</span><i></i></div>
+
+      <section class="slot slot-exterior" data-slot="exterior">
+        <p class="eyebrow">01 — Ame · rain</p>
+        <h1>Christopher Tang</h1>
+        <p class="lede">
+          [placeholder] A rainy farmhouse at the edge of the paddies. Two lines of intro copy go
+          here once the design is approved.
+        </p>
+      </section>
+
+      <section class="slot slot-interior" data-slot="interior">
+        <p class="eyebrow">02 — Ie · house</p>
+        <h2>[Placeholder heading]</h2>
+        <p>
+          [placeholder] The room is warm and dry. This paper card holds a short paragraph about
+          whatever belongs indoors.
+        </p>
+      </section>
+
+      <section class="slot slot-paddy" data-slot="paddy">
+        <p class="eyebrow">03 — Tanbo · paddy</p>
+        <h2>[Placeholder heading]</h2>
+        <p>[placeholder] Rows of rice in flooded ground. A caption for the field goes here.</p>
+      </section>
+
+      <section class="slot slot-underwater" data-slot="underwater">
+        <p class="eyebrow">04 — Sakana · fish</p>
+        <h2>[Placeholder heading]</h2>
+        <p>
+          [placeholder] Under the surface the fish keep the paddy alive. Closing copy and links go
+          here.
+        </p>
+        <p class="links">
+          <a href="https://github.com/C0derTang">GitHub</a><a href="#exterior">Back to the top</a>
+        </p>
+      </section>
+    </main>
+
+    <!-- Scroll spacer. Its height defines the length of the story. -->
+    <div class="scroll-track" aria-hidden="true">
+      <section class="beat" id="exterior" style="--len: 0.18"></section>
+      <section class="beat" id="enter" style="--len: 0.24"></section>
+      <section class="beat" id="doors" style="--len: 0.1"></section>
+      <section class="beat" id="paddy" style="--len: 0.22"></section>
+      <section class="beat" id="dive" style="--len: 0.1"></section>
+      <section class="beat" id="underwater" style="--len: 0.16"></section>
+    </div>
+
+    <noscript>
+      <p class="noscript">
+        This page is an animated scene that needs JavaScript. The text above is the whole story;
+        links still work.
+      </p>
+    </noscript>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

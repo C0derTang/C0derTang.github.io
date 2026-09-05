@@ -1,0 +1,60 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: #142a3a; /* end-of-film color hides overscroll */
+  color: var(--ui-text);
+  font-family: var(--font-body);
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.skip-link {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  padding: 0.5rem 0.75rem;
+  background: var(--ink);
+  color: var(--ui-text);
+  transform: translateY(-120%);
+}
+.skip-link:focus {
+  transform: none;
+}
+
+.scroll-track .beat {
+  height: calc(var(--len) * var(--scroll-len) * 1vh);
+}
+
+.noscript {
+  position: relative;
+  z-index: 5;
+  margin: 1rem;
+  padding: 1rem;
+  background: var(--ui-scrim);
+}
+
+html:not(.js) .stage,
+html:not(.js) .waterline,
+html:not(.js) #glow,
+html:not(.js) #grade,
+html:not(.js) #vignette,
+html:not(.js) #grain {
+  display: none;
+}
+html:not(.js) #overlay {
+  position: static;
+  pointer-events: auto;
+}
+html:not(.js) .slot {
+  opacity: 1;
+  visibility: visible;
+  position: static;
+  transform: none;
+}
