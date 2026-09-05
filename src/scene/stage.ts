@@ -16,7 +16,7 @@ export interface Stage {
 
 interface WriteCache {
   vis: string
-  tr: string
+  vb: string
   op: string
 }
 
@@ -47,10 +47,15 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
   const cacheFor = (id: string): WriteCache => {
     let c = cache.get(id)
     if (!c) {
-      c = { vis: '', tr: '', op: '' }
+      c = { vis: '', vb: '', op: '' }
       cache.set(id, c)
     }
     return c
+  }
+  const svgOf = new Map<string, SVGSVGElement>()
+  for (const L of layers) {
+    const svg = L.el.querySelector('svg')
+    if (svg) svgOf.set(L.id, svg)
   }
 
   return {
@@ -71,11 +76,17 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
         }
         if (!vis) continue
         live++
-        // 2D transforms: 3D transforms on siblings made Chrome reorder composited layers.
-        const tr = `translate(${p.tx.toFixed(2)}px, ${p.ty.toFixed(2)}px) scale(${p.s.toFixed(4)})`
-        if (c.tr !== tr) {
-          c.tr = tr
-          L.el.style.transform = tr
+        // The projection is applied as an SVG viewBox window instead of a CSS transform: the
+        // raster stays viewport-sized whatever the scale (a scaled composited plane made Chrome
+        // rasterize bleed x scale^2 pixels per layer and run out of GPU tile memory), and the
+        // vectors stay crisp. Screen = vx + (stage - vx) * s + tx, inverted for the stage box.
+        const k = 1 / (p.s * size.unit)
+        const x0 = ((-p.tx - size.vx) / p.s + size.vx - size.ox) / size.unit
+        const y0 = ((-p.ty - size.vy) / p.s + size.vy - size.oy) / size.unit
+        const vb = `${x0.toFixed(2)} ${y0.toFixed(2)} ${(size.w * k).toFixed(2)} ${(size.h * k).toFixed(2)}`
+        if (c.vb !== vb) {
+          c.vb = vb
+          svgOf.get(L.id)?.setAttribute('viewBox', vb)
         }
         const op = p.opacity.toFixed(3)
         if (c.op !== op) {

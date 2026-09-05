@@ -50,7 +50,7 @@ export function mtnFarLayer(quality: Quality): Layer {
     <g class="clouds">${ellipse(420, 500, 340, 70, 'url(#ex-cloud)')}${ellipse(1180, 540, 420, 90, 'url(#ex-cloud)')}${ellipse(800, 470, 260, 50, 'url(#ex-cloud)')}</g>
     ${rect(-500, 640, 2600, 140, 'url(#ex-mistA)')}
     ${fogPath('fog fogc', ridge)}`
-  const layer = makeSvgLayer('mtn-far', AIR.mtnFar, inner)
+  const layer = makeSvgLayer('mtn-far', { ...AIR.mtnFar, live: !quality.reducedMotion }, inner)
   fogHook('fog', (g) => g.fogFar)(layer)
   if (!quality.reducedMotion) {
     const clouds = layer.el.querySelector('.clouds')

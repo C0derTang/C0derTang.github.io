@@ -145,7 +145,11 @@ export function interiorRoomLayer(quality: Quality): Layer {
     <path d="M${lampX - 14} ${lampY - 56}v112M${lampX} ${lampY - 56}v112M${lampX + 14} ${lampY - 56}v112" stroke="${v('wood-dark')}" stroke-width="2" opacity=".6"/>
     <g class="lamp-core">${circle(lampX, lampY, 40, 'url(#in-lampCore)')}</g>
     ${rect(lampX - 44, lampY - 66, 88, 10, v('wood-dark'), 'rx="4"')}`
-  const layer = makeSvgLayer('interior-room', AIR.interiorRoom, inner)
+  const layer = makeSvgLayer(
+    'interior-room',
+    { ...AIR.interiorRoom, live: !quality.reducedMotion },
+    inner,
+  )
   if (!quality.reducedMotion) {
     const core = layer.el.querySelector('.lamp-core')
     if (core)

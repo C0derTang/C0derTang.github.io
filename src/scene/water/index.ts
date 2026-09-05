@@ -41,7 +41,7 @@ function raysLayer(): Layer {
     [0.5, v('uw-ray'), 0.12],
     [0.85, v('uw-ray'), 0],
   ])}</defs><g class="rays">${rays}</g>`
-  const layer = makeSvgLayer('uw-rays', WATER.rays, inner)
+  const layer = makeSvgLayer('uw-rays', { ...WATER.rays, live: true }, inner)
   const g = layer.el.querySelector('.rays')
   layer.update = (state) => {
     if (g) attrWrite(g, 'opacity', state.water.rays.toFixed(3))
@@ -129,7 +129,7 @@ function fishLayer(
 ): Layer {
   const prefix = `${id}-`
   const inner = `${fishDefs(prefix)}${specs.map((spec) => fishMarkup(spec, prefix)).join('')}`
-  const layer = makeSvgLayer(id, opts, inner)
+  const layer = makeSvgLayer(id, { ...opts, live: !quality.reducedMotion }, inner)
   const svgEl = layer.el.querySelector('svg')
   layer.mount = () => {
     for (const spec of specs) {

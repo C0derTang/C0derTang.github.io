@@ -38,7 +38,7 @@ export function norenLayer(quality: Quality): Layer {
       'noren-r',
       DOORWAY.x + DOORWAY.w / 2 + gap / 2 + w / 2,
     )}</g>`
-  const layer = makeSvgLayer('noren', AIR.noren, inner)
+  const layer = makeSvgLayer('noren', { ...AIR.noren, live: !quality.reducedMotion }, inner)
   // The curtain parts as the camera approaches it (pure in zr), then dissolves.
   const partL = layer.el.querySelector('.part-l')
   const partR = layer.el.querySelector('.part-r')

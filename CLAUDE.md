@@ -56,8 +56,15 @@ monotone-cubic spline through keys. Layers are parallel planes at `depth`, proje
 authored for (exterior 0, interior 1000, paddy 2600). Portals (doorway, shoji opening) are
 centered on VP; a wall dissolves (fade window in pass-through ratio `zr`) only after its portal
 rim has left the viewport, and the layers behind the front wall live in a `.portal` group clipped
-to the doorway while the wall is visible. Use 2D transforms only: translate3d on sibling layers
-made Chrome reorder composited layers.
+to the doorway while the wall is visible.
+
+Layers are NOT CSS-transformed. The stage applies the projection by rewriting each SVG's
+`viewBox` to the visible design-space window (`preserveAspectRatio="none"`), so every layer
+rasterizes at viewport size no matter its scale and vectors stay crisp. Scaling composited planes
+was tried first: Chrome rasterized bleed x scale^2 pixels per `will-change` layer, ran out of GPU
+tile memory on the way back out, and blanked whole layers (even the HUD). Only layers with
+ambient animation (`live: true`) get composited (`will-change: opacity`); the rest paint straight
+into the stage.
 
 ## Conventions
 
@@ -118,5 +125,5 @@ merge via PR.
 - add raster image/video assets (`public/og.jpg` is the one bitmap); no external art
 - add dependencies beyond lenis/animejs/fontsource without asking
 - use npm/yarn, commit `package-lock.json`, or bump TypeScript to 7 while typescript-eslint lacks support
-- do per-frame work outside the director loop; use translate3d/preserve-3d on layers
+- do per-frame work outside the director loop; put CSS transforms or `will-change` on scene layers
 - commit directly to `main`

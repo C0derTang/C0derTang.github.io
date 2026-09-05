@@ -47,7 +47,8 @@ export interface LayerOpts {
   restCz?: number
   fade?: readonly [number, number]
   range?: readonly [number, number]
-  raster?: 'locked' | 'dynamic'
+  /** Has time-based animation inside: gets its own composited layer so idle repaints stay local. */
+  live?: boolean
   /** Member of the clip group that is masked to the doorway while the front wall is visible. */
   portal?: boolean
 }
@@ -59,7 +60,7 @@ export interface Layer {
   restCz: number
   fade?: readonly [number, number]
   range?: readonly [number, number]
-  raster: 'locked' | 'dynamic'
+  live: boolean
   portal: boolean
   /** Called once after the element is in the document (geometry APIs work from here). */
   mount?(): void

@@ -39,28 +39,30 @@
 .world {
   position: absolute;
   inset: 0;
+}
+#stage-water .world {
   will-change: transform;
 }
+/* Layers paint straight into the stage; only layers with ambient animation get composited. */
 .layer {
   position: absolute;
   inset: 0;
-  overflow: visible;
-  transform-origin: var(--vx) var(--vy);
+  overflow: hidden;
+}
+.layer[data-live='1'] {
+  will-change: opacity;
 }
 .portal {
   position: absolute;
   inset: 0;
   overflow: visible;
 }
-.layer[data-raster='locked'] {
-  will-change: transform, opacity;
-}
 .layer > svg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  overflow: visible;
+  overflow: hidden;
   display: block;
 }
 .panel {
