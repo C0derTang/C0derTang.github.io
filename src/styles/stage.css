@@ -140,3 +140,28 @@ html[data-tier='low'] #grain {
 html[data-tier='low'] #grain {
   display: none;
 }
+
+.waterline-svg {
+  position: absolute;
+  left: -220px;
+  top: -60px;
+  height: 160px;
+  width: 4400px;
+  display: block;
+}
+.wl-drift {
+  animation: wl-drift 6s linear infinite;
+}
+@keyframes wl-drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-220px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wl-drift {
+    animation: none;
+  }
+}

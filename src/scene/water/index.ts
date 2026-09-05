@@ -1,6 +1,7 @@
 import type { Quality } from '../../config/quality'
 import { WATER } from '../../config/layers'
 import { ellipse, linGrad, path, polygon, rect, v, wobbly } from '../draw'
+import { fishDefs, fishMarkup, startLane, startRig, type FishSpec } from '../fish'
 import { makeSvgLayer } from '../layer'
 import type { Layer } from '../types'
 import { attrWrite } from '../../util/dom'
@@ -118,37 +119,40 @@ function mudLayer(): Layer {
   return makeSvgLayer('uw-mud', WATER.mud, inner)
 }
 
-/** Placeholder fish (rigs come in the fish pass). */
+/** A layer of swimming fish: hidden lanes + rigged fish groups; reveal index picks the fade. */
 function fishLayer(
   id: string,
   opts: { depth: number; restCz: number },
+  specs: FishSpec[],
   which: 0 | 1,
-  seed: number,
+  quality: Quality,
 ): Layer {
-  const rnd = mulberry32(seed)
-  let fish = ''
-  const n = which === 0 ? 3 : 4
-  for (let i = 0; i < n; i++) {
-    const x = 200 + rnd() * 1200
-    const y = 400 + rnd() * 500
-    const s = which === 0 ? 1.3 : 0.7
-    const dir = rnd() > 0.5 ? 1 : -1
-    fish += `<g transform="translate(${x} ${y}) scale(${dir * s} ${s})">${ellipse(0, 0, 80, 26, which === 0 ? v('koi-white') : v('funa'))}${polygon(
-      [
-        [-70, 0],
-        [-120, -30],
-        [-120, 30],
-      ],
-      which === 0 ? v('koi-white') : v('funa'),
-    )}${ellipse(20, -8, 30, 12, v('koi-orange'))}</g>`
+  const prefix = `${id}-`
+  const inner = `${fishDefs(prefix)}${specs.map((spec) => fishMarkup(spec, prefix)).join('')}`
+  const layer = makeSvgLayer(id, opts, inner)
+  const svgEl = layer.el.querySelector('svg')
+  layer.mount = () => {
+    for (const spec of specs) {
+      const mover = layer.el.querySelector(`[data-fish="${spec.id}"]`)
+      const lane = layer.el.querySelector<SVGPathElement>(`[data-lane="${spec.id}"]`)
+      if (!mover || !lane) continue
+      startLane(mover, lane, spec, quality.reducedMotion)
+      if (!quality.reducedMotion) startRig(mover, spec.species)
+    }
   }
-  const layer = makeSvgLayer(id, opts, `<g class="school">${fish}</g>`)
-  const svg = layer.el.querySelector('svg')
   layer.update = (state) => {
-    if (svg) attrWrite(svg, 'opacity', state.water.fishReveal[which].toFixed(3))
+    if (svgEl) attrWrite(svgEl, 'opacity', state.water.fishReveal[which].toFixed(3))
   }
   return layer
 }
+
+const LANES = {
+  lensHigh: 'M-260 600C300 500 1300 500 1860 600C1300 700 300 700 -260 600Z',
+  lensLow: 'M-260 780C300 700 1300 720 1860 790C1300 860 300 850 -260 780Z',
+  hero: 'M-500 520C200 380 1300 640 2100 560C1400 780 300 720 -500 520Z',
+  mud: 'M-400 930C200 890 700 985 1200 940C1500 915 1700 960 2000 940C1600 1000 900 1010 300 980C0 970 -300 990 -400 930Z',
+  school: 'M-300 470C300 420 900 440 1900 480C1300 560 500 540 -300 470Z',
+} as const
 
 export function buildWaterLayers(quality: Quality): Layer[] {
   const low = quality.tier === 'low'
@@ -156,10 +160,67 @@ export function buildWaterLayers(quality: Quality): Layer[] {
     ceilingLayer(),
     raysLayer(),
     stemsLayer('uw-stems-far', WATER.stemsFar, false),
-    low ? null : fishLayer('fish-back', WATER.fishBack, 1, 95),
+    low
+      ? null
+      : fishLayer(
+          'fish-back',
+          WATER.fishBack,
+          [0, 1, 2, 3, 4].map((i) => ({
+            id: `funa${i}`,
+            species: 'funa' as const,
+            scale: 0.5 + (i % 3) * 0.07,
+            lane: LANES.school,
+            duration: 30 + i * 1.5,
+            offset: i * 0.13,
+          })),
+          1,
+          quality,
+        ),
     mudLayer(),
-    fishLayer('fish-mid', WATER.fishMid, 0, 96),
-    fishLayer('fish-near', WATER.fishNear, 0, 97),
+    fishLayer(
+      'fish-mid',
+      WATER.fishMid,
+      [
+        {
+          id: 'koiA',
+          species: 'koi',
+          scale: 1.3,
+          lane: LANES.lensHigh,
+          duration: 22,
+          offset: 0.1,
+          variant: 'kohaku',
+        },
+        {
+          id: 'koiB',
+          species: 'koi',
+          scale: 1.1,
+          lane: LANES.lensLow,
+          duration: 26,
+          offset: 0.62,
+          variant: 'orange',
+        },
+      ],
+      0,
+      quality,
+    ),
+    fishLayer(
+      'fish-near',
+      WATER.fishNear,
+      [
+        { id: 'dojo', species: 'dojo', scale: 1.5, lane: LANES.mud, duration: 18, offset: 0.3 },
+        {
+          id: 'koiC',
+          species: 'koi',
+          scale: 1.9,
+          lane: LANES.hero,
+          duration: 25,
+          offset: 0.55,
+          variant: 'white',
+        },
+      ],
+      0,
+      quality,
+    ),
     stemsLayer('uw-stems-near', WATER.stemsNear, true),
   ]
   return layers.filter((l): l is Layer => l !== null)

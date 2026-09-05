@@ -61,6 +61,8 @@ export interface Layer {
   range?: readonly [number, number]
   raster: 'locked' | 'dynamic'
   portal: boolean
+  /** Called once after the element is in the document (geometry APIs work from here). */
+  mount?(): void
   /** Per-frame hook, only called while the layer is visible. Writes only. */
   update?(state: SceneState, p: Projection): void
   resize?(size: StageSize): void
@@ -89,6 +91,8 @@ export interface RainState {
   clip: Rect[] | null
   /** screen y where near drops splash (null = no splashes) */
   groundY: number | null
+  /** eave drip line in screen px (null = none) */
+  eave: { x0: number; x1: number; y: number } | null
 }
 
 export interface RippleState {

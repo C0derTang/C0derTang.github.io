@@ -37,6 +37,7 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
     }
   }
   world.append(frag)
+  for (const L of layers) L.mount?.()
   let lastClip = ''
 
   const cache = new Map<string, WriteCache>()

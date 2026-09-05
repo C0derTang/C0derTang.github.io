@@ -11,7 +11,7 @@ export function makeSvgLayer(
   id: string,
   opts: LayerOpts,
   inner: string,
-  hooks: Pick<Layer, 'update' | 'resize'> = {},
+  hooks: Pick<Layer, 'update' | 'resize' | 'mount'> = {},
 ): Layer {
   const el = document.createElement('div')
   el.className = 'layer'

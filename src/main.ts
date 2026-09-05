@@ -3,12 +3,14 @@ import 'lenis/dist/lenis.css'
 import Lenis from 'lenis'
 import { DESIGN, SCROLL_LEN_VH } from './config/beats'
 import { detectQuality } from './config/quality'
+import { createFx } from './fx'
 import { createGradeStack, installGrainTile } from './fx/grade'
 import { buildAirLayers } from './scene/air'
 import { createStage, type Stage } from './scene/stage'
 import { computeState } from './scene/state'
 import type { SceneState, StageSize } from './scene/types'
 import { buildWaterLayers } from './scene/water'
+import { mountWaterline } from './scene/waterline'
 import { createDirector } from './scroll/director'
 import { createHud } from './ui/debug'
 import { createOverlay } from './ui/overlay'
@@ -60,6 +62,12 @@ measure(stageAir.clientWidth, stageAir.clientHeight)
 
 const air = createStage(airWorld, buildAirLayers(quality), size)
 const water = createStage(waterWorld, buildWaterLayers(quality), size)
+// The bubble canvas rides inside the water world so it counter-translates with it during the dive.
+const bubblesCanvas = mustGet<HTMLCanvasElement>('#stage-water .fx-bubbles')
+waterWorld.append(bubblesCanvas)
+const fx = createFx(quality, mustGet<HTMLCanvasElement>('#stage-air .fx-rain'), bubblesCanvas)
+fx.resize(size)
+mountWaterline(waterline)
 const overlay = createOverlay(mustGet('#overlay'))
 const gradeStack = createGradeStack()
 const params = new URLSearchParams(location.search)
@@ -93,6 +101,7 @@ director.onFrame((f) => {
   styleWrite(waterWorld, 'transform', `translate3d(0,${(-state.wl + state.sinkTy).toFixed(2)}px,0)`)
   styleWrite(waterline, 'transform', `translate3d(0,${wl}px,0)`)
 
+  fx.update(state)
   overlay.update(state)
   gradeStack.apply(state.grade)
   hud?.update(state)
@@ -105,6 +114,7 @@ const ro = new ResizeObserver((entries) => {
   measure(e.contentRect.width, e.contentRect.height)
   air.resize(size)
   water.resize(size)
+  fx.resize(size)
   lenis.resize()
   if (director.running) director.seek(tBefore)
 })

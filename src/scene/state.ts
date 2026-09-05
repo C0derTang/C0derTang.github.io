@@ -52,11 +52,15 @@ export function computeState(
   let rainAlpha: number
   let rainClip: Rect[] | null = null
   let groundY: number | null = null
+  let eave: { x0: number; x1: number; y: number } | null = null
   if (!airVisible) {
     rainAlpha = 0
   } else if (houseVisible) {
     rainAlpha = houseP.opacity
     groundY = designToScreen({ x: 800, y: HOUSE.gravelY }, houseP, size).y
+    const e0 = designToScreen({ x: 300, y: HOUSE.eaveY }, houseP, size)
+    const e1 = designToScreen({ x: 1330, y: HOUSE.eaveY }, houseP, size)
+    eave = { x0: e0.x, x1: e1.x, y: e0.y }
   } else if (shojiVisible && shojiP.opacity > 0.5) {
     rainAlpha = 1
     rainClip = [
@@ -119,7 +123,7 @@ export function computeState(
     cam,
     waterCam: { cz: lerp(0, 150, uw), cx: 0, cy: 0 },
     doors,
-    rain: { alpha: rainAlpha, clip: rainClip, groundY },
+    rain: { alpha: rainAlpha, clip: rainClip, groundY, eave },
     ripples: { strength: rippleStrength, horizonY, polygon, clip: rainClip },
     wl,
     sinkTy,
