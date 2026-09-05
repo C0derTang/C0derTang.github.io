@@ -46,7 +46,11 @@
   inset: 0;
   overflow: visible;
   transform-origin: var(--vx) var(--vy);
-  backface-visibility: hidden;
+}
+.portal {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
 }
 .layer[data-raster='locked'] {
   will-change: transform, opacity;

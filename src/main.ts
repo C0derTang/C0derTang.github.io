@@ -1,1 +1,135 @@
 import './styles/index.css'
+import 'lenis/dist/lenis.css'
+import Lenis from 'lenis'
+import { DESIGN, SCROLL_LEN_VH } from './config/beats'
+import { detectQuality } from './config/quality'
+import { createGradeStack, installGrainTile } from './fx/grade'
+import { buildAirLayers } from './scene/air'
+import { createStage, type Stage } from './scene/stage'
+import { computeState } from './scene/state'
+import type { SceneState, StageSize } from './scene/types'
+import { buildWaterLayers } from './scene/water'
+import { createDirector } from './scroll/director'
+import { createHud } from './ui/debug'
+import { createOverlay } from './ui/overlay'
+import { mustGet, styleWrite } from './util/dom'
+
+declare global {
+  interface Window {
+    __scene?: {
+      seek(t: number): void
+      freeze(on: boolean): void
+      readonly state: SceneState | undefined
+      air: Stage
+      water: Stage
+      size: StageSize
+    }
+  }
+}
+
+history.scrollRestoration = 'manual'
+
+const quality = detectQuality()
+const html = document.documentElement
+html.dataset.tier = quality.tier
+html.style.setProperty('--scroll-len', String(SCROLL_LEN_VH[quality.tier]))
+installGrainTile()
+
+const stageAir = mustGet('#stage-air')
+const stageWater = mustGet('#stage-water')
+const waterline = mustGet('.waterline')
+const airWorld = mustGet('#stage-air .world')
+const waterWorld = mustGet('#stage-water .world')
+
+const size: StageSize = { w: 1, h: 1, unit: 1, ox: 0, oy: 0, vx: 0, vy: 0, dpr: 1 }
+function measure(w: number, h: number): void {
+  size.w = w
+  size.h = h
+  size.unit = Math.max(w / DESIGN.w, h / DESIGN.h)
+  size.ox = (w - DESIGN.w * size.unit) / 2
+  size.oy = (h - DESIGN.h * size.unit) / 2
+  size.vx = size.ox + DESIGN.vp.x * size.unit
+  size.vy = size.oy + DESIGN.vp.y * size.unit
+  size.dpr = Math.min(window.devicePixelRatio || 1, quality.dprCap)
+  for (const st of [stageAir, stageWater]) {
+    st.style.setProperty('--vx', `${size.vx.toFixed(2)}px`)
+    st.style.setProperty('--vy', `${size.vy.toFixed(2)}px`)
+  }
+}
+measure(stageAir.clientWidth, stageAir.clientHeight)
+
+const air = createStage(airWorld, buildAirLayers(quality), size)
+const water = createStage(waterWorld, buildWaterLayers(quality), size)
+const overlay = createOverlay(mustGet('#overlay'))
+const gradeStack = createGradeStack()
+const params = new URLSearchParams(location.search)
+const hud = params.has('debug') ? createHud(air, water, quality.tier) : null
+
+const lenis = new Lenis({
+  autoRaf: false,
+  smoothWheel: !quality.reducedMotion,
+  syncTouch: false,
+  anchors: true,
+})
+const director = createDirector(lenis)
+
+let lastState: SceneState | undefined
+director.onFrame((f) => {
+  const state = computeState(f.t, f.time, f.dt, size, quality)
+  lastState = state
+  air.render(state, state.cam)
+  air.setPortalClip(state.portal)
+  water.render(state, state.waterCam)
+
+  styleWrite(stageAir, 'visibility', state.air.visible ? 'visible' : 'hidden')
+  styleWrite(stageWater, 'visibility', state.water.visible ? 'visible' : 'hidden')
+  styleWrite(
+    waterline,
+    'visibility',
+    state.water.visible && state.wl > -0.15 * size.h ? 'visible' : 'hidden',
+  )
+  const wl = state.wl.toFixed(2)
+  styleWrite(stageWater, 'transform', `translate3d(0,${wl}px,0)`)
+  styleWrite(waterWorld, 'transform', `translate3d(0,${(-state.wl + state.sinkTy).toFixed(2)}px,0)`)
+  styleWrite(waterline, 'transform', `translate3d(0,${wl}px,0)`)
+
+  overlay.update(state)
+  gradeStack.apply(state.grade)
+  hud?.update(state)
+})
+
+const ro = new ResizeObserver((entries) => {
+  const e = entries[0]
+  if (!e) return
+  const tBefore = director.t
+  measure(e.contentRect.width, e.contentRect.height)
+  air.resize(size)
+  water.resize(size)
+  lenis.resize()
+  if (director.running) director.seek(tBefore)
+})
+ro.observe(stageAir)
+director.start()
+
+// Dev hooks: ?t=0.35 seeks, &freeze holds time, ?debug shows the HUD.
+const tParam = params.get('t')
+if (params.has('freeze')) director.freeze(true)
+if (tParam !== null) {
+  requestAnimationFrame(() => {
+    director.seek(Number(tParam))
+  })
+}
+window.__scene = {
+  seek: (t) => {
+    director.seek(t)
+  },
+  freeze: (on) => {
+    director.freeze(on)
+  },
+  get state() {
+    return lastState
+  },
+  air,
+  water,
+  size,
+}

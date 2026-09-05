@@ -20,6 +20,8 @@
 }
 
 .hint {
+  --o: 1;
+  opacity: var(--o);
   position: absolute;
   left: 50%;
   bottom: max(1.5rem, env(safe-area-inset-bottom));
@@ -53,12 +55,13 @@
 }
 
 .slot {
+  --o: 0;
   position: absolute;
   max-width: min(34rem, calc(100vw - 3rem));
   padding: 1.5rem 1.75rem;
-  opacity: 0;
+  opacity: var(--o);
   visibility: hidden;
-  transform: translateY(12px);
+  transform: translateY(calc((1 - var(--o)) * 12px));
 }
 .slot-exterior {
   left: max(1.5rem, env(safe-area-inset-left));
@@ -68,9 +71,9 @@
   border-radius: 4px;
 }
 .slot-interior {
-  right: 6vw;
+  left: 6vw;
   top: 50%;
-  transform: translateY(-50%);
+  transform: translateY(calc(-50% + (1 - var(--o)) * 12px));
   max-width: min(26rem, calc(100vw - 3rem));
   background: rgba(241, 233, 214, 0.92);
   color: var(--ink);
@@ -88,7 +91,7 @@
 .slot-underwater {
   left: 50%;
   bottom: 14vh;
-  transform: translateX(-50%);
+  transform: translate(-50%, calc((1 - var(--o)) * 12px));
   text-align: center;
   text-shadow: 0 1px 2px var(--uw-deep);
 }
@@ -104,15 +107,14 @@
   .slot-exterior {
     left: 50%;
     top: 12vh;
-    transform: translateX(-50%);
+    transform: translate(-50%, calc((1 - var(--o)) * 12px));
     width: calc(100vw - 2rem);
   }
   .slot-interior {
-    right: auto;
     left: 50%;
     top: auto;
     bottom: 10vh;
-    transform: translateX(-50%);
+    transform: translate(-50%, calc((1 - var(--o)) * 12px));
     width: calc(100vw - 2rem);
   }
 }
