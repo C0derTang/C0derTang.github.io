@@ -23,6 +23,8 @@ import type { SceneState } from '../state'
  */
 export interface Rain {
   mesh: Mesh
+  /** splash rings on the wet ground of the yard (pre-seeded schedule, closed form of time) */
+  splashes: Mesh
   update(state: SceneState, camera: Camera): void
 }
 
@@ -105,12 +107,78 @@ export function createRain(quality: Quality): Rain {
   mesh.frustumCulled = false
   mesh.castShadow = false
   mesh.receiveShadow = false
+
+  // Splash rings: flat quads scattered over the yard (never inside the house), each on its own
+  // phase; the ring expands and fades over one cycle. Positions and phases are generated once.
+  const splashCount = Math.round(n / 12)
+  const sGeo = new InstancedBufferGeometry()
+  const sBase = new PlaneGeometry(1, 1)
+  sGeo.index = sBase.index
+  sGeo.attributes.position = sBase.attributes.position as never
+  sGeo.attributes.uv = sBase.attributes.uv as never
+  const sPos = new Float32Array(splashCount * 3)
+  const sSeed = new Float32Array(splashCount)
+  for (let i = 0; i < splashCount; i++) {
+    let x = -9 + rnd() * 18
+    let z = -1 + rnd() * 28
+    while (x > HOUSE_MIN.x && x < HOUSE_MAX.x && z < HOUSE_MAX.z) {
+      x = -9 + rnd() * 18
+      z = -1 + rnd() * 28
+    }
+    sPos[i * 3] = x
+    sPos[i * 3 + 1] = 0.02
+    sPos[i * 3 + 2] = z
+    sSeed[i] = rnd()
+  }
+  sGeo.setAttribute('aPos', new InstancedBufferAttribute(sPos, 3))
+  sGeo.setAttribute('aPhase', new InstancedBufferAttribute(sSeed, 1))
+  sGeo.instanceCount = splashCount
+  const sMat = new ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uAlpha: { value: 1 },
+      uColor: { value: new Color('#e8eef0') },
+    },
+    vertexShader: /* glsl */ `
+      uniform float uTime;
+      attribute vec3 aPos; attribute float aPhase;
+      varying vec2 vUv; varying float vU;
+      void main() {
+        vUv = uv;
+        float u = fract(uTime * 1.4 + aPhase * 7.0);
+        vU = u;
+        float s = mix(0.05, 0.36, u);
+        vec3 wp = aPos + vec3(position.x * s, 0.0, -position.y * s);
+        gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uAlpha; uniform vec3 uColor;
+      varying vec2 vUv; varying float vU;
+      void main() {
+        float d = length(vUv - 0.5);
+        float ring = smoothstep(0.40, 0.45, d) * (1.0 - smoothstep(0.47, 0.5, d));
+        float a = ring * (1.0 - vU) * 0.55 * uAlpha;
+        if (a < 0.01) discard;
+        gl_FragColor = vec4(uColor, a);
+      }`,
+    transparent: true,
+    depthWrite: false,
+  })
+  const splashes = new Mesh(sGeo, sMat)
+  splashes.frustumCulled = false
+  splashes.castShadow = false
+  splashes.receiveShadow = false
+
   const right = new Vector3()
   return {
     mesh,
+    splashes,
     update(state, camera) {
       const u = material.uniforms
       mesh.visible = state.rain.alpha > 0.001 && !state.underwater
+      splashes.visible = mesh.visible && camera.position.z > -6
+      ;(sMat.uniforms.uTime as { value: number }).value = state.reduced ? 0 : state.time / 1000
+      ;(sMat.uniforms.uAlpha as { value: number }).value = state.rain.alpha
       if (!mesh.visible) return
       ;(u.uTime as { value: number }).value = state.reduced ? 0 : state.time / 1000
       ;(u.uCenter as { value: Vector3 }).value.copy(camera.position)

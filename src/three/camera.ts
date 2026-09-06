@@ -23,7 +23,7 @@ const T = BEATS
 const track = (keys: readonly Key[]) => monotoneCubic(keys)
 
 const px = track([
-  [0, -1.2],
+  [0, -0.8],
   [T.exterior[1], 0],
   [1, 0],
 ])
@@ -33,12 +33,13 @@ const py = track([
   [T.enter[1], 1.45],
   [T.doors[1], 1.45],
   [T.paddy[1], 1.3],
-  [0.8, 0.1],
+  [0.785, 0.7],
+  [0.8, -0.45],
   [T.dive[1], -1.3],
   [1, -1.5],
 ])
 const pz = track([
-  [0, 22],
+  [0, 18],
   [T.exterior[1], 9],
   [T.enter[1], -3.2],
   [T.turn[1], -3.2],
@@ -55,7 +56,8 @@ const ty = track([
   [0, 1.4],
   [T.doors[1], 1.4],
   [T.paddy[1], 1.0],
-  [0.8, -0.6],
+  [0.79, 0.1],
+  [0.805, -1.0],
   [T.dive[1], -1.5],
   [1, -1.6],
 ])

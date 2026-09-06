@@ -46,6 +46,8 @@ export interface Materials {
   rice: MeshStandardMaterial
   cloth: MeshStandardMaterial
   water: MeshPhysicalMaterial
+  /** the same water as a thin film: puddles on the path (tiny thickness, shorter attenuation) */
+  puddle: MeshPhysicalMaterial
   waterNormals: Texture
   /** the fir twig alpha card (CC0) for cedar tiers */
   needleAlpha: Texture
@@ -127,6 +129,10 @@ export function createMaterials(quality: Quality, loader: Loader): Materials {
     return m
   }
   const needleAlpha = loader.texture('/assets/tex/needles_alpha.png')
+  const softenPlaster = (m: MeshStandardMaterial): MeshStandardMaterial => {
+    m.normalScale.set(0.55, 0.55)
+    return m
+  }
   needleAlpha.flipY = false
   const water = new MeshPhysicalMaterial({
     color: new Color('#5f7a76'),
@@ -146,6 +152,12 @@ export function createMaterials(quality: Quality, loader: Loader): Materials {
   })
   water.normalScale.set(0.35, 0.35)
   waterNormals.repeat.set(24, 24)
+  const puddle = water.clone()
+  puddle.thickness = 0.03
+  puddle.attenuationDistance = 0.4
+  puddle.roughness = 0.08
+  puddle.color.set('#8d9394')
+  puddle.normalScale.set(0.2, 0.2)
   const paper = std('#f7e6c0', 0.9)
   paper.emissive = new Color('#f2b45a')
   paper.emissiveIntensity = 0.35
@@ -160,10 +172,10 @@ export function createMaterials(quality: Quality, loader: Loader): Materials {
     make,
     ground: make('moss', { repeat: 0.5, color: '#b9c9a8' }),
     gravel: make('gravel', { repeat: 0.8, roughness: 0.45, color: '#cfd3d2' }),
-    plaster: make('plaster', { repeat: 0.5, color: '#e6ded0' }),
+    plaster: softenPlaster(make('plaster', { repeat: 0.5, color: '#f1eadc' })),
     wood: make('planks', { repeat: 0.7, roughness: 0.8, color: '#a88a6c' }),
     woodDark: make('planks', { repeat: 0.7, roughness: 0.85, color: '#5a4636' }),
-    thatch: make('thatch', { repeat: 0.5, color: '#cdbfa2' }),
+    thatch: make('thatch', { repeat: 0.5, color: '#e2d4b6' }),
     tatami: make('tatami', { repeat: 1.1, color: '#d6c98a' }),
     paper,
     stone: make('stone', { repeat: 0.6, color: '#cfd1cc' }),
@@ -173,6 +185,7 @@ export function createMaterials(quality: Quality, loader: Loader): Materials {
     rice,
     cloth,
     water,
+    puddle,
     waterNormals,
     needleAlpha,
     update(time) {

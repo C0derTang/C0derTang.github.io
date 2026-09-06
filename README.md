@@ -1,9 +1,10 @@
 # c0dertang.github.io
 
 Personal site of Christopher Tang: a single scroll-driven scene. A rainy Japanese farmhouse you
-dolly into, leave through the back shoji, cross a rice paddy, and sink under the water to the
-fish. Built from CSS-transform + inline-SVG layers and canvas particles in vanilla TypeScript
-with [Lenis](https://lenis.darkroom.engineering/) and [anime.js](https://animejs.com/). No framework.
+walk up to, enter, look around, leave through the back shoji, cross a flooded rice paddy, and
+sink under the water to the fish. A [three.js](https://threejs.org/) WebGL scene in vanilla
+TypeScript with [Lenis](https://lenis.darkroom.engineering/) driving the camera; CC0 textures
+from Poly Haven and ambientCG (see `public/assets/ATTRIBUTION.md`). Desktop first.
 
 Live: https://c0dertang.github.io/
 
@@ -15,14 +16,13 @@ pnpm dev        # http://localhost:5173  (pnpm dev:lan to test on a phone)
 pnpm build      # typecheck + production build to dist/
 pnpm preview    # serve dist/ on http://localhost:4173
 pnpm lint && pnpm typecheck && pnpm format:check
-pnpm test:e2e   # Playwright smoke test (first: pnpm exec playwright install chromium)
-pnpm bench      # headless paint benchmark against e2e/bench.baseline.json
+pnpm test:e2e   # Playwright smoke test on headless Chromium (first: pnpm exec playwright install chromium)
+pnpm bench      # frame-time sweep in the installed Chrome (real GPU)
 ```
 
-Dev URL hooks: `?debug` (HUD), `?t=0.35` (seek), `&freeze` (deterministic frame),
-`?preview=<layerId>` (one layer with its bleed edge), `?bench=8` (paint benchmark, report in
-`window.__bench`), `?skip=<ids>` / `?only=<ids>` (layer cost by exclusion), `?tier=high|low`,
-`?tex=off|small|full` (material tiles).
+Dev URL hooks: `?debug` (HUD with camera, beat, draw calls), `?t=0.35` (seek), `&freeze`
+(deterministic frame), `?bench=8` (frame-time sweep, report in `window.__bench`),
+`?tier=high|low`, `?dpr=<n>`, `?post=off` (no depth of field).
 
 Requires Node >= 22.13 and pnpm 10 (pinned in `package.json`; pnpm switches to it automatically).
 Architecture, the scroll-beat model and conventions are in `CLAUDE.md`.

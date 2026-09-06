@@ -66,8 +66,8 @@ const fogColor = col([
   [1, '#1e4f5a'],
 ])
 const fogDensity = num([
-  [0, 0.028],
-  [T.enter[0], 0.028],
+  [0, 0.024],
+  [T.enter[0], 0.026],
   [T.enter[1], 0.06],
   [T.doors[1], 0.06],
   [T.paddy[0] + 0.03, 0.022],
@@ -76,21 +76,21 @@ const fogDensity = num([
   [1, 0.18],
 ])
 const sunIntensity = num([
-  [0, 1.1],
-  [T.enter[0], 1.1],
-  [T.enter[1], 0.35],
-  [T.doors[1], 0.35],
-  [T.paddy[0] + 0.03, 1.2],
-  [0.79, 1.2],
+  [0, 1.8],
+  [T.enter[0], 1.8],
+  [T.enter[1], 0.4],
+  [T.doors[1], 0.4],
+  [T.paddy[0] + 0.03, 1.9],
+  [0.79, 1.9],
   [0.81, 0.25],
   [1, 0.2],
 ])
 const skyIntensity = num([
-  [0, 0.7],
-  [T.enter[1], 0.35],
-  [T.doors[1], 0.35],
-  [T.paddy[0] + 0.03, 0.75],
-  [0.79, 0.75],
+  [0, 0.9],
+  [T.enter[1], 0.4],
+  [T.doors[1], 0.4],
+  [T.paddy[0] + 0.03, 0.95],
+  [0.79, 0.95],
   [0.81, 0.3],
   [1, 0.3],
 ])
@@ -103,7 +103,7 @@ const lamp = num([
   [1, 0],
 ])
 const focusDistance = num([
-  [0, 12],
+  [0, 16],
   [T.exterior[1], 6],
   [T.enter[1], 3.4],
   [T.doors[1], 3],
@@ -113,7 +113,7 @@ const focusDistance = num([
   [1, 3],
 ])
 const focusRange = num([
-  [0, 10],
+  [0, 12],
   [T.enter[1], 3],
   [T.doors[1], 3],
   [T.paddy[0] + 0.03, 20],

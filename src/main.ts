@@ -37,6 +37,10 @@ html.style.setProperty('--scroll-len', String(SCROLL_LEN_VH[quality.tier]))
 const canvas = mustGet<HTMLCanvasElement>('#gl')
 const curtain = mustGet('#curtain')
 const app = createApp(canvas, quality)
+const curtainBar = curtain.querySelector<HTMLElement>('.curtain-bar i')
+app.onProgress((p) => {
+  if (curtainBar) styleWrite(curtainBar, '--p', p.toFixed(3))
+})
 const overlay = createOverlay(mustGet('#overlay'))
 const hud = params.has('debug') ? createHud(app) : null
 

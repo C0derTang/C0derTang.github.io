@@ -1,140 +1,108 @@
 # CLAUDE.md
 
-Personal site of Christopher Tang: one page that plays a scroll-driven scene — a rainy Japanese
-farmhouse you dolly into, leave through the back shoji, cross a rice paddy, and sink under the
-water to the fish (rice-fish polyculture). Inline-SVG layers in stylized realism (one light
-story, shaded volumes, procedural material tiles, reflections, caustics), canvas particles.
-No routing, no framework, no CMS. Scrolling is the only input; every pixel is a deterministic
-function of scroll progress `t` (plus wall-clock time for ambient loops). Live at
-https://c0dertang.github.io/ (GitHub Pages, `gh-pages` branch, served at `/`, no CNAME).
+Personal site of Christopher Tang: one page that plays a scroll-driven three.js scene — a rainy
+Japanese farmhouse you walk up to, enter, look around, leave through the back shoji, cross a
+flooded rice paddy, and sink under the water to the fish (rice-fish polyculture). Stylized
+realism: real geometry, CC0 PBR materials, soft shadows, fog, rain, wet surfaces, water with
+refraction, depth of field. No routing, no framework, no CMS. Scrolling is the only input; every
+frame is a deterministic function of scroll progress `t` plus wall-clock time for ambient
+motion. Desktop is the target. Live at https://c0dertang.github.io/ (GitHub Pages, `gh-pages`
+branch, served at `/`, no CNAME).
 
 ## Stack
 
 Vite 8, vanilla TypeScript (strict, `~6.0` until typescript-eslint supports 7), plain CSS with
-custom properties, `lenis` (smooth scroll, source of `t`), `animejs` v4 (seekable timelines
-driven by `t`; time-based ambient loops; `onScroll` is never used), latin-only `@fontsource`
-subsets (Shippori Mincho + Zen Kaku Gothic New). Node >= 22.13 (`.nvmrc` = 24), pnpm 10 pinned
-via `packageManager` (pnpm switches versions itself; corepack is not used).
+custom properties, `three` (WebGL renderer + addons), `postprocessing` (pmndrs; one merged
+effect pass), `lenis` (smooth scroll, source of `t`), `animejs` v4 (only for seekable timelines
+and the engine tick), latin-only `@fontsource` subsets. Node >= 22.13 (`.nvmrc` = 24), pnpm 10
+pinned via `packageManager` (no corepack). `minimumReleaseAge` is one day: a package version
+younger than that will not install.
 
 ## Commands
 
 - `pnpm install --frozen-lockfile` never npm/yarn; never hand-edit pnpm-lock.yaml
-- `pnpm dev` / `pnpm dev:lan` :5173 (`dev:lan` exposes to the LAN for phones)
+- `pnpm dev` :5173 (hot reload; the GPU screenshot scripts point at it)
 - `pnpm typecheck` / `pnpm lint` / `pnpm format` (`format:check` runs in CI)
 - `pnpm build` typecheck + `vite build` -> `dist/`; read the gz size table
 - `pnpm preview` serve `dist/` on :4173
-- `pnpm test:e2e` Playwright smoke (first: `pnpm exec playwright install chromium`)
+- `pnpm test:e2e` Playwright smoke on headless Chromium (software WebGL, minimal tier)
+- `BENCH=1 pnpm bench` frame-time sweep in the installed Chrome (real GPU, headed)
 
 ## Layout
 
-- `index.html` head/meta, DOM skeleton: `#stage-air`, `#stage-water`, `.waterline`, grade stack,
-  `#overlay` (crawlable placeholder copy), `.scroll-track` (six beat spacers)
-- `public/` `favicon.svg`, `og.jpg` only
-- `src/main.ts` boot: quality tier, stages, Lenis, director, fx, overlay, dev hooks
-- `src/config/beats.ts` BEATS table, camera keys, slot windows — the timing tuning surface
-- `src/config/layers.ts` depth / restCz / fade / range / portal per layer — the space tuning surface
+- `index.html` head/meta, `<canvas id="gl">`, the loading curtain, `#overlay` (crawlable
+  placeholder copy), `.scroll-track` (seven beat spacers)
+- `public/assets/` CC0 textures (`tex/<set>/{color,normal,rough,ao}.jpg`), the overcast HDRI,
+  the fir twig alpha card, `ATTRIBUTION.md` (every asset: source, license, what changed)
+- `src/main.ts` boot: quality tier, app, overlay, HUD, Lenis, director, dev hooks, `window.__scene`
+- `src/config/beats.ts` BEATS table, slot windows, scroll length — the timing tuning surface
+- `src/config/quality.ts` tiers: `high` (desktop), `low` (small/touch viewports, untuned),
+  software WebGL (headless test runs)
 - `src/scroll/director.ts` the single rAF loop: lenis.raf -> t -> subscribers -> anime engine.update()
-- `src/scene/camera.ts` `project(layer, cam, unit)` and `camera(t)`; the only place projection math lives
-- `src/scene/state.ts` pure `computeState(t, time, ...)`; the DOM and canvases are projections of it
-- `src/scene/stage.ts` layer registry, portal clip group, range gating, cached writes, `toScreen()`
-- `src/scene/geometry.ts` shared design-space rects (doorway, shoji opening, lamp, paddy water)
-- `src/scene/air/*` one layer per file (far -> near order in `air/index.ts`)
-- `src/scene/water/*` underwater layers + fish layers; `src/scene/fish.ts` holds the rigs and lanes
-- `src/scene/draw.ts` SVG idioms: `v()`, `wobbly()`, `pivot()`, gradients, `cedar()`, `shojiPanel()`, `riceClump()`
-- `src/scene/waterline.ts` meniscus strip swept by the dive
-- `src/fx/*` canvas rain / ripples / bubbles (time-based, seeded), `grade.ts` lighting keyframes
-- `src/ui/overlay.ts`, `src/ui/debug.ts`
-- `src/styles/*` `tokens.css` (palette + grade vars), `fonts.css`, `stage.css`, `type.css`, `overlay.css`
-- `e2e/smoke.spec.ts` Playwright: seeks every beat, screenshots, no console errors, live-plane budget, texture
-  hrefs, DOM purity forward vs backward
-- `e2e/bench.spec.ts` paint benchmark against `bench.baseline.json` (`BENCH=1 pnpm bench`; `BENCH_MODE=bisect`)
+- `src/three/app.ts` renderer, scene assembly, per-frame update order, `stats()`
+- `src/three/state.ts` pure `computeState(t, time, dt, scrollVel, quality)`: pose, doors, depth,
+  underwater flag, fog / light / focus / grade / rain keys, slots
+- `src/three/camera.ts` the camera path in metres (position and target tracks, yaw during the turn)
+- `src/three/atmosphere.ts` fog, HDRI sky, the shadow-casting sun with its fitted frustum, room lights
+- `src/three/materials.ts` the material registry (`make(set, opts)` over the CC0 sets, water,
+  procedural water normals)
+- `src/three/post.ts` one EffectPass: depth of field (reads the main depth), grade, vignette, SMAA
+- `src/three/loader.ts` LoadingManager, textures, HDRI
+- `src/three/world/*` one module per part of the world (`{ group, update? }`): house + yard,
+  interior, terrain, paddy, underwater, fish, rain
+- `src/ui/overlay.ts`, `src/ui/debug.ts` (HUD), `src/ui/bench.ts`
+- `src/styles/*` `tokens.css`, `fonts.css`, `base.css`, `gl.css`, `type.css`, `overlay.css`
+- `e2e/smoke.spec.ts` every beat without console errors, the underwater flip, pose purity
+  forward vs backward; `e2e/bench.spec.ts` frame-time gates
 
-## Scroll model
+## World
 
-`t = lenis.progress` (0..1) once per frame. Beats (`config/beats.ts`): exterior 0–.18, enter
-.18–.42, doors .42–.52, paddy .52–.74, dive .74–.84, underwater .84–1. Camera `cz` is a
-monotone-cubic spline through keys. Layers are parallel planes at `depth`, projected in TS as
-`translate + scale` about the vanishing point (design canvas 1600x1200, VP (800,700), P=1000):
-`s = (P + depth - restCz) / (P + depth - cz)`. `restCz` says which camera position a layer was
-authored for (exterior 0, interior 1000, paddy 2600). Portals (doorway, shoji opening) are
-centered on VP; a wall dissolves (fade window in pass-through ratio `zr`) only after its portal
-rim has left the viewport, and the layers behind the front wall live in a `.portal` group clipped
-to the doorway while the wall is visible.
-
-Layers are NOT CSS-transformed. The stage applies the projection by rewriting each SVG's
-`viewBox` to the visible design-space window (`preserveAspectRatio="none"`), so every layer
-rasterizes at viewport size no matter its scale and vectors stay crisp. Scaling composited planes
-was tried first: Chrome rasterized bleed x scale^2 pixels per `will-change` layer, ran out of GPU
-tile memory on the way back out, and blanked whole layers (even the HUD). Only layers with
-ambient animation (`live: true`) get composited (`will-change: opacity`); the rest paint straight
-into the stage.
-
-A layer is an outer stage-px `<svg>` holding nested `<svg data-part>` viewports ("parts"), each
-projected at its own depth (`parts` in `config/layers.ts`): micro-parallax inside one object
-(roof / walls / posts, cedars on three depths) for one viewBox write per part and no extra
-composited planes. Rules: parts never interleave with neighbouring layers' depths; the nearest
-part must satisfy `depth >= layer.depth + 1000 * fade[1] - 880` (dev warning otherwise); never
-split an object from the plane it stands on (rice rows stay on the water); duplicate a contact
-band in both parts where a split is wanted (porch band in walls and posts). The low tier merges
-parts into one viewport (`quality.microParallax`).
-
-The camera adds a pure-in-`t` lens-breathing pulse (`cam.p`) at the two pass-throughs; `zr` and
-the near clip keep the constant P so fade windows never move. No sway or nod written in `t`: an
-oscillation in `t` is a scroll-speed-dependent shake (it was tried at 29 cycles per page and
-read as ~6 Hz on a trackpad flick), and its screen amplitude grows with 1/distance, so the planes
-nearest the camera before the dive shook hardest. Never put time-based motion on `cam` either (it
-would defeat the viewBox write cache and repaint every layer while idle); the only time-based
-camera motion is the compositor-only bob on the water world.
+Metres, +y up, the camera starts at +z looking toward −z, the doorway threshold is the origin.
+House front wall z 0 (x ±5.5, eave y 3.2, ridge y 6, depth 7, back shoji at z −7, floor y 0.41);
+gravel path z 0..24; paddy water y −0.3 (`WATER_Y`) from z −8 to −52 between dikes at x ±2.6;
+terraces z −47..−70; ridges z −150 / −300 / −600; mud bed y −3; the dive crosses the surface at
+(0, −0.3, −24) around t .80. Beats (`config/beats.ts`): exterior 0–.15, enter .15–.32, turn
+.32–.50 (a real 360 yaw with dwell plateaus), doors .50–.58, paddy .58–.76, dive .76–.85,
+underwater .85–1.
 
 ## Conventions
 
-- Layers are pure in `t`: `update()` writes only transform/opacity/visibility/attributes; scrubbing
-  backwards must reproduce frames exactly. No scroll listeners, no timers, no autoplaying tweens
-  that depend on scroll.
-- One rAF loop. anime timelines are `seek()`ed from `t`; ambient anime loops (fish rigs, lanes,
-  steam, noren, clouds, lamp) are time-based and scroll-independent.
-- Canvas FX: `dt` from the director, seeded PRNG, DPR capped at 2 (1.5 low tier), one static frame
-  under reduced motion, paused when the tab is hidden.
-- Reduced motion: `computeState` snaps the camera to a per-beat still and fades through dark at
-  beat boundaries; no ambient loops are created.
-- Perf budget: JS <= 150 KB gz, CSS <= 30 KB gz; <= 11 live planes in air, 7 in water; no SVG
-  filters inside layers (grain is one pre-rasterized tile on a fixed element); blend modes only
-  on the fixed grade stack (normal on the low tier); never animate `:root` custom properties
-  per frame — write the fixed grade elements and per-layer attributes directly.
-- Art: hand-authored SVG in TS template strings only. Colors via `var(--token)` from tokens.css
-  (canvas reads `scene/palette.ts`). viewBox `0 0 1600 1200`, `xMidYMid slice`, `overflow:
-visible` for bleed. Keep what matters inside the portrait core zone x 530–1070, y 270–930.
+- Pure in `t`: the camera pose, doors, fog, lights, focus and grade come from keyed tracks in
+  `state.ts`/`camera.ts` (monotone cubics: flat key pairs are exact holds). Ambient motion (rain,
+  water normals, wind, lamp flicker, fish) is a closed form of `state.time`; never integrate
+  state on the CPU per frame. Frozen frames (`?freeze`) hold `time`; scrubbing back must
+  reproduce frames. `state.reduced` (prefers-reduced-motion) disables all ambient motion.
+- One rAF loop. Nothing else touches the renderer; world modules only mutate their own objects
+  inside `update(state)`.
+- Materials come from the registry: `mats.make(set, { repeat, roughness, color })` with UVs laid
+  out in metres. Wetness is lower roughness plus a darker tint. No unlit surfaces except sprites.
+- Shadows: only solid architecture, trunks, walls, posts, the lantern, bicycle and pole cast;
+  instanced foliage, rice, florets and cards never do; grounds and floors receive. One shadow
+  light whose frustum is fitted to the view every frame; no cascades.
+- Instancing for anything repeated; per-instance animation in `onBeforeCompile` from a `uTime`
+  uniform. Rain instances inside the house box are collapsed in the shader.
+- Post: keep it one EffectPass. The depth of field reads the main depth texture; never add a
+  pass that re-renders the scene.
+- Assets: CC0 only, listed in `public/assets/ATTRIBUTION.md`; 1K JPG colour and normal maps,
+  512 roughness and AO; procedural everything else (no glTF pipeline). Everything loads behind
+  the curtain before the first frame.
+- Budgets: JS <= 400 KB gz; draw calls <= 220 and triangles <= 1.5 M per frame (`?debug` HUD
+  and `renderer.info` via `window.__scene.app.stats()`); p95 frame <= 16.7 ms at 1440x900 DPR
+  1.5 on an Apple-silicon integrated GPU (`pnpm bench`); assets <= 12 MB.
 - TS strict + `noUncheckedIndexedAccess`; no `!` assertions (use `mustGet`). Prettier formats
   everything; ESLint is type-aware.
-
-## Adding a scene layer
-
-1. Add its placement to `src/config/layers.ts` (`depth`, `restCz`, `fade`, `range`, `portal`).
-2. Create `src/scene/air/<name>.ts` (or `water/`) exporting a `Layer` via `makeSvgLayer(id, opts, svg)`;
-   use `mount()` for geometry-dependent setup and `update()` for per-frame attribute writes.
-3. Register it in the far -> near list in `air/index.ts` or `water/index.ts`.
-4. Check `?preview=<id>` (magenta viewBox edge for bleed), then `?debug&freeze&t=<f>` at
-   f = 0, .15, .35, .5, .7, .9, 1 and scrubbed back to 0.
-
-## Adding a content slot
-
-1. Add `{ id, window: [in0, in1, out0, out1] }` to `SLOTS` in `config/beats.ts`.
-2. Add `<section class="slot slot-<id>" data-slot="<id>">` with real copy to `index.html` and
-   position it in `styles/overlay.css` (it must never sit on raw exterior/paddy art: use the
-   scrim or the paper card).
 
 ## Verification (before claiming anything works)
 
 - `pnpm typecheck && pnpm lint && pnpm format:check && pnpm build` green; sizes under budget.
-- `pnpm dev`, then Playwright MCP: resize 1440x900 and 390x844; navigate
-  `http://localhost:5173/?debug&freeze&t=<f>` for f in 0, .15, .35, .5, .7, .9, 1; screenshot
-  each; `browser_console_messages` has no errors; a backward pass 1 -> .5 -> .35 -> 0 must
-  match the forward shots; `page.emulateMedia({ reducedMotion: 'reduce' })` shows stills.
-- `pnpm test:e2e` is the automated form (builds, previews, seeks every beat); `BENCH=1 pnpm bench`
-  (or `?bench=8` in the browser, report in `window.__bench`) is the paint budget; `?skip=<ids>` /
-  `?only=<ids>` isolate layer cost; `?tier=high|low` forces a quality tier.
-- Benchmark on an idle machine in headless Chromium: a headed Chrome window that is occluded or
-  a busy CPU produce 200 ms stalls that are not in the page.
+- Real-GPU frames: with `pnpm dev` running, a Playwright script using `channel: 'chrome'` and
+  `--use-angle=metal` renders `http://localhost:5173/?freeze&t=<f>` for f in 0, .12, .28, .36,
+  .41, .46, .55, .68, .8, .9, 1 (the scratchpad `gl.mjs` does this and prints draw calls,
+  triangles and console errors). Headless Chromium only proves it runs: SwiftShader is slow and
+  drops to the software tier.
+- Purity: a backward scrub 1 -> .55 -> .41 -> .28 -> 0 gives the same `window.__scene.state.pose`
+  as forward; `pnpm test:e2e` checks it.
+- `BENCH=1 pnpm bench` for frame time, long tasks, draw calls, triangles (`BENCH_GPU=1` gates p95).
 
 ## Deploy
 
@@ -145,11 +113,10 @@ merge via PR.
 
 ## Do not
 
-- add React/Vue/Svelte, Tailwind, CSS-in-JS, a router, a CMS, three.js/WebGL
-- add raster image/video assets (`public/og.jpg` is the one bitmap); no external art
-- add dependencies beyond lenis/animejs/fontsource without asking
+- add React/Vue/Svelte, Tailwind, CSS-in-JS, a router, a CMS, react-three-fiber, or a physics engine
+- add assets that are not CC0, or any asset without an `ATTRIBUTION.md` entry
+- add dependencies beyond three/postprocessing/lenis/animejs/fontsource without asking
 - use npm/yarn, commit `package-lock.json`, or bump TypeScript to 7 while typescript-eslint lacks support
-- do per-frame work outside the director loop; put CSS transforms or `will-change` on scene layers
-- add `<filter>`, `<mask>`, `<pattern>` or big `<g opacity>` groups inside layers; add live planes without
-  checking the budget
+- integrate motion on the CPU per frame, add a second render of the scene, or cast shadows from instances
+- tune for phones (they get the untuned `low` tier)
 - commit directly to `main`
