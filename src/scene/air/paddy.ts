@@ -1,6 +1,8 @@
 import { AIR } from '../../config/layers'
 import {
   aoGrad,
+  cedarDefs,
+  cedarFar,
   cyl,
   ellipse,
   fadeGrad,
@@ -51,7 +53,8 @@ export function paddyFarLayer(): Layer {
     '#4a5678',
     '#2f3852',
     3,
-  )}${aoGrad('pd-ao', v('ao-cool'), 0.5)}</defs>
+  )}${aoGrad('pd-ao', v('ao-cool'), 0.5)}${cedarDefs('pdfar', true)}</defs>
+    ${[1160, 1250, 1340, 1430, 1520].map((x, i) => cedarFar(x, 642, 0.32 + (i % 2) * 0.06, 90 + i, 'pdfar')).join('')}
     ${band(640, 24, 'url(#pd-bandW)', 51)}${band(662, 18, 'url(#pd-bandG)', 52)}${band(678, 20, 'url(#pd-bandW)', 53)}${band(696, 14, 'url(#pd-bandG)', 54)}
     ${shadow(1035, 701, 70, 6, 'pd-ao', 0.6)}
     ${rect(990, 640, 90, 60, v('plaster-shadow'))}

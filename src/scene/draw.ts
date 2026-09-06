@@ -126,39 +126,176 @@ export const fogRect = (
 ): string =>
   `<rect class="${cls}" x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" fill="${color}" opacity="0"/>`
 
+/** Per-layer gradient defs the cedar/foliage recipes reference (`ids` = id prefix). */
+export const cedarDefs = (ids: string, far = false): string =>
+  (far
+    ? linGrad(
+        `${ids}-bough`,
+        [
+          [0, '#7c9a94'],
+          [0.5, v('green-far')],
+          [1, '#4e6a64'],
+        ],
+        0,
+        0,
+        1,
+        1,
+      )
+    : linGrad(
+        `${ids}-bough`,
+        [
+          [0, v('green-mid')],
+          [0.45, v('green-deep')],
+          [1, v('green-shadow')],
+        ],
+        0,
+        0,
+        1,
+        1,
+      )) +
+  cyl(`${ids}-bark`, v('bark-dark'), v('wood-mid'), v('bark-light'), 0.3) +
+  aoGrad(`${ids}-ao`, v('ao-cool'), 0.5) +
+  fadeGrad(`${ids}-wet`, v('wet'), 0, 0.35)
+
 /**
- * Cedar silhouette: stacked wobbly triangle tiers on a trunk, with a rim-light duplicate behind.
- * (x, baseY) is the trunk base; scale sizes the whole tree.
+ * Sugi cedar: drooping bough tiers of clustered shapes, key light upper-left (diagonal
+ * bough gradient), lit crests, AO hems, the far side of the crown in shadow, a sky rim on the
+ * top-left edges, a bark-shaded trunk with a wet base and a contact shadow. ~38 elements.
+ * (x, baseY) is the trunk base; `ids` selects the defs prefix (see cedarDefs).
  */
-export function cedar(x: number, baseY: number, scale: number, seed: number, tiers = 7): string {
+export function cedar(
+  x: number,
+  baseY: number,
+  scale: number,
+  seed: number,
+  tiers = 7,
+  ids = 'ex',
+): string {
   const rnd = mulberry32(seed)
   const trunkW = 26 * scale
-  const trunkH = 140 * scale
-  let out = rect(x - trunkW / 2, baseY - trunkH, trunkW, trunkH, v('wood-dark'))
-  out += rect(x - trunkW / 2, baseY - trunkH, 6 * scale, trunkH, v('wood-mid'))
-  const tierH = 110 * scale
-  const overlap = 40 * scale
-  let top = baseY - trunkH + 30 * scale
-  const shapes: string[] = []
+  const trunkH = 150 * scale
+  const tierH = 105 * scale
+  const overlap = 42 * scale
+  let top = baseY - trunkH + 34 * scale
+  const tierPaths: string[] = []
+  let boughs = ''
   for (let i = 0; i < tiers; i++) {
     const w = (300 - 34 * i) * scale
-    const yBottom = top
-    const yTop = top - tierH
-    const jitter = (rnd() - 0.5) * 12 * scale
+    const last = i === tiers - 1
+    const yb = top
+    const yt = top - tierH - (last ? 50 * scale : 0)
+    const droop = (14 + rnd() * 10) * scale
+    const j = (rnd() - 0.5) * 14 * scale
     const pts: P2[] = [
-      [x - w / 2 + jitter, yBottom],
-      [x, yTop - (i === tiers - 1 ? 60 * scale : 0)],
-      [x + w / 2 + jitter, yBottom],
+      [x - w / 2 + j, yb + droop],
+      [x - w * 0.3, yb - tierH * 0.28],
+      [x, yt],
+      [x + w * 0.3, yb - tierH * 0.28],
+      [x + w / 2 + j, yb + droop],
+      [x + w * 0.22, yb + droop * 0.4],
+      [x, yb + droop * 0.9],
+      [x - w * 0.22, yb + droop * 0.4],
     ]
-    const d = wobbly(pts, 6 * scale, seed + i * 7)
-    shapes.push(d)
-    top = yTop + overlap
+    const d = wobbly(pts, 9 * scale, seed + i * 7)
+    tierPaths.push(d)
+    boughs +=
+      path(d, `url(#${ids}-bough)`) +
+      ellipse(
+        x - w * 0.16,
+        yb - tierH * 0.55,
+        w * 0.22,
+        tierH * 0.16,
+        v('green-crest'),
+        'opacity=".35"',
+      ) +
+      ellipse(
+        x + w * 0.05,
+        yb + droop * 0.5,
+        w * 0.38,
+        droop * 0.9,
+        v('green-shadow'),
+        'opacity=".45"',
+      )
+    top = yt + overlap
   }
-  const rim = shapes
-    .map((d) => path(d, v('green-mid'), 'opacity=".55" transform="translate(4 -3)"'))
+  const back = tierPaths
+    .map((d) => path(d, v('green-shadow'), 'opacity=".9" transform="translate(10 -6)"'))
     .join('')
-  const main = shapes.map((d) => path(d, v('green-deep'))).join('')
-  return `<g class="cedar">${rim}${out}${main}</g>`
+  const rim = tierPaths
+    .map((d) => path(d, v('rim'), 'opacity=".16" transform="translate(-3 -4)"'))
+    .join('')
+  const trunk =
+    rect(x - trunkW / 2, baseY - trunkH, trunkW, trunkH, `url(#${ids}-bark)`) +
+    rect(x - trunkW / 2, baseY - 40 * scale, trunkW, 40 * scale, `url(#${ids}-wet)`)
+  return `<g class="cedar">${shadow(x, baseY, 70 * scale, 12 * scale, `${ids}-ao`, 0.4)}${back}${rim}${trunk}${boughs}</g>`
+}
+
+/** Distant cedar: four gradient tiers and a trunk, no crests or rims (6 elements). */
+export function cedarFar(
+  x: number,
+  baseY: number,
+  scale: number,
+  seed: number,
+  ids = 'ex',
+): string {
+  const rnd = mulberry32(seed)
+  const tierH = 90 * scale
+  const overlap = 36 * scale
+  let top = baseY - 20 * scale
+  let out = rect(x - 5 * scale, baseY - 40 * scale, 10 * scale, 40 * scale, '#4e6a64')
+  for (let i = 0; i < 4; i++) {
+    const w = (220 - 40 * i) * scale
+    const last = i === 3
+    const yt = top - tierH - (last ? 40 * scale : 0)
+    const droop = (10 + rnd() * 8) * scale
+    out += path(
+      wobbly(
+        [
+          [x - w / 2, top + droop],
+          [x - w * 0.3, top - tierH * 0.25],
+          [x, yt],
+          [x + w * 0.3, top - tierH * 0.25],
+          [x + w / 2, top + droop],
+          [x, top + droop * 0.8],
+        ],
+        6 * scale,
+        seed + i * 3,
+      ),
+      `url(#${ids}-bough)`,
+    )
+    top = yt + overlap
+  }
+  return out
+}
+
+/** Broadleaf mass: three overlapping wobbly ellipsoids (shadow / mid / lit), a crest and an AO hem (5 elements). */
+export function foliage(x: number, y: number, w: number, seed: number, ids = 'ex'): string {
+  const blob = (
+    cx: number,
+    cy: number,
+    rx: number,
+    ry: number,
+    amp: number,
+    sd: number,
+  ): string => {
+    const pts: P2[] = []
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2
+      pts.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry])
+    }
+    return wobbly(pts, amp, sd)
+  }
+  return (
+    path(blob(x + w * 0.12, y + w * 0.04, w * 0.5, w * 0.3, w * 0.05, seed), v('green-shadow')) +
+    path(blob(x, y, w * 0.48, w * 0.3, w * 0.05, seed + 1), `url(#${ids}-bough)`) +
+    path(
+      blob(x - w * 0.18, y - w * 0.1, w * 0.3, w * 0.2, w * 0.04, seed + 2),
+      v('green-mid'),
+      'opacity=".8"',
+    ) +
+    ellipse(x - w * 0.22, y - w * 0.2, w * 0.14, w * 0.06, v('green-crest'), 'opacity=".35"') +
+    ellipse(x + w * 0.05, y + w * 0.26, w * 0.4, w * 0.06, v('green-shadow'), 'opacity=".45"')
+  )
 }
 
 /**
