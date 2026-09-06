@@ -12,6 +12,8 @@ import {
   rect,
   shadow,
   shojiPanel,
+  texRect,
+  textured,
   v,
   wobbly,
 } from '../draw'
@@ -116,6 +118,16 @@ export function houseLayer(): Layer {
   const post = (x: number) =>
     shadow(x + 11, H.wallBottom + 2, 22, 5, 'ex-ao', 0.8) +
     rect(x, H.wallTop + 20, 22, H.wallBottom - H.wallTop - 20, 'url(#ex-post)') +
+    texRect(
+      'woodV',
+      x,
+      H.wallTop + 20,
+      22,
+      H.wallBottom - H.wallTop - 20,
+      22,
+      0.3,
+      H.wallBottom - H.wallTop - 20,
+    ) +
     rect(x, H.wallBottom - 60, 22, 60, 'url(#ex-wet)')
 
   const joints = (x0: number, x1: number) => {
@@ -124,10 +136,16 @@ export function houseLayer(): Layer {
     return `<path d="${d}" stroke="${v('wood-mid')}" stroke-width="1.5" opacity=".5"/>`
   }
 
-  const wallPiece = (x0: number, x1: number) =>
+  const wallPiece = (x0: number, x1: number, id: string) =>
     rect(x0, H.wallTop, x1 - x0, 724 - H.wallTop, v('plaster')) +
+    texRect('plaster', x0, H.wallTop, x1 - x0, 724 - H.wallTop, 256, 0.45) +
     rect(x0, H.wallTop, x1 - x0, 724 - H.wallTop, 'url(#ex-plasterShade)') +
-    rect(x0, 724, x1 - x0, H.wallBottom - 724, v('wood-dark')) +
+    textured(
+      `ex-wains-${id}`,
+      (fill) => rect(x0, 724, x1 - x0, H.wallBottom - 724, fill),
+      v('wood-dark'),
+      texRect('wood', x0, 724, x1 - x0, H.wallBottom - 724, 256, 0.35),
+    ) +
     joints(x0, x1) +
     rect(x0, H.wallBottom - 50, x1 - x0, 50, 'url(#ex-wet)')
 
@@ -210,12 +228,12 @@ export function houseLayer(): Layer {
     )}
     ${rect(290, 906, 1050, 30, 'url(#ex-aoDown)')}
     ${leanTo}
-    ${wallPiece(H.left, DOORWAY.x)}
+    ${wallPiece(H.left, DOORWAY.x, 'l')}
     ${rect(450, 610, 130, 110, 'url(#ex-spill)')}
     ${rect(470, 630, 90, 70, 'url(#ex-paperLit)')}
     ${rect(470, 630, 90, 70, 'url(#ex-paperGlow)')}
     <path d="M515 630V700M470 665H560" stroke="${v('wood-dark')}" stroke-width="3"/>
-    ${wallPiece(DOORWAY.x + DOORWAY.w, H.right)}
+    ${wallPiece(DOORWAY.x + DOORWAY.w, H.right, 'r')}
     ${rect(990, 592, 190, 228, 'url(#ex-spill)')}
     ${shojiPanel(1010, 612, 150, 188, { lit: true, cols: 2, rows: 5, prefix: 'ex-' })}
     ${rect(1018, 620, 134, 172, 'url(#ex-paperGlow)')}
@@ -223,12 +241,14 @@ export function houseLayer(): Layer {
     ${rect(H.left, H.eaveY, H.sideRight - H.left, 90, 'url(#ex-eaveShadow)')}
     ${rect(H.left, 798, H.sideRight - H.left, 12, 'url(#ex-aoUp)')}
     ${rect(H.left, H.wallBottom, H.sideRight - H.left, 22, 'url(#ex-porchTop)')}
+    ${texRect('wood', H.left, H.wallBottom, H.sideRight - H.left, 22, 256, 0.3, 22)}
     ${rect(H.left, H.wallBottom, H.sideRight - H.left, 10, 'url(#ex-sheen)')}
     <path d="M${H.left} 818H${H.sideRight}M${H.left} 826H${H.sideRight}" stroke="${v('wood-mid')}" stroke-width="1" opacity=".5"/>
     ${rect(H.left, 832, H.sideRight - H.left, 14, v('wood-dark'))}
     ${rect(820, 840, 100, 14, 'url(#ex-stepTop)', 'rx="6"')}
     ${rect(820, 840, 100, 5, 'url(#ex-sheen)', 'rx="3"')}
     ${rect(290, 846, 1050, 22, '#6a6e6b', 'opacity=".8"')}
+    ${texRect('stone', 290, 846, 1050, 22, 128, 0.4, 22)}
     ${rect(290, 846, 1050, 10, v('wet'), 'opacity=".25"')}
     ${pebbles}
     ${path(

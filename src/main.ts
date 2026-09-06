@@ -10,6 +10,7 @@ import { buildAirLayers } from './scene/air'
 import { createStage, type Stage } from './scene/stage'
 import { computeState } from './scene/state'
 import type { SceneState, StageSize } from './scene/types'
+import { TEX, createTextures } from './scene/textures'
 import { buildWaterLayers } from './scene/water'
 import { mountWaterline } from './scene/waterline'
 import { createDirector } from './scroll/director'
@@ -49,6 +50,11 @@ const waterline = mustGet('.waterline')
 const airWorld = mustGet('#stage-air .world')
 const waterWorld = mustGet('#stage-water .world')
 
+// Material tiles are generated before the layers are built (texRect reads the level).
+const textures = createTextures(quality, params.get('tex'))
+if (params.get('texclip') === 'off') TEX.clip = false
+if (params.get('texgrid') === 'single') TEX.single = true
+
 const size: StageSize = { w: 1, h: 1, unit: 1, ox: 0, oy: 0, vx: 0, vy: 0, dpr: 1 }
 function measure(w: number, h: number): void {
   size.w = w
@@ -74,6 +80,10 @@ waterWorld.append(bubblesCanvas)
 const fx = createFx(quality, mustGet<HTMLCanvasElement>('#stage-air .fx-rain'), bubblesCanvas)
 fx.resize(size)
 mountWaterline(waterline)
+textures.apply(document)
+void textures.ready.then(() => {
+  textures.apply(document)
+})
 const overlay = createOverlay(mustGet('#overlay'))
 const gradeStack = createGradeStack()
 const hud = params.has('debug') ? createHud(air, water, quality.tier) : null
@@ -86,7 +96,7 @@ const lenis = new Lenis({
 })
 const director = createDirector(lenis)
 
-const bench = params.has('bench') ? createBench(lenis, air, water, 0) : null
+const bench = params.has('bench') ? createBench(lenis, air, water, textures.generateMs) : null
 
 let lastState: SceneState | undefined
 director.onFrame((f) => {

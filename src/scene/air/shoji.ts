@@ -1,6 +1,17 @@
 import { createTimeline } from 'animejs'
 import { AIR } from '../../config/layers'
-import { circle, fadeGrad, linGrad, path, radGrad, rect, shojiPanel, v, wobbly } from '../draw'
+import {
+  circle,
+  fadeGrad,
+  linGrad,
+  path,
+  radGrad,
+  rect,
+  shojiPanel,
+  texRect,
+  v,
+  wobbly,
+} from '../draw'
 import { SHOJI } from '../geometry'
 import { makeSvgLayer } from '../layer'
 import type { Layer } from '../types'
@@ -58,6 +69,8 @@ export function shojiLayer(): Layer {
     ${rect(-300, -300, 2200, S.y + 300, v('plaster-int'))}
     ${rect(-300, S.y, S.x0 + 300, S.panelH, v('plaster-int'))}
     ${rect(S.x0 + 4 * S.panelW, S.y, 800, S.panelH, v('plaster-int'))}
+    <clipPath id="in-wallClip"><rect x="-300" y="100" width="2200" height="${S.y - 100}"/><rect x="-300" y="${S.y}" width="${S.x0 + 300}" height="${S.panelH}"/><rect x="${S.x0 + 4 * S.panelW}" y="${S.y}" width="800" height="${S.panelH}"/></clipPath>
+    <g clip-path="url(#in-wallClip)">${texRect('plaster', -300, 100, 2200, 700, 512, 0.35)}</g>
     ${rect(-300, 100, 2200, 300, 'url(#in-ceilAO)')}
     ${circle(1080, 500, 560, 'url(#in-wallGlow)')}
     ${circle(250, 480, 320, 'url(#in-windowSpill)')}

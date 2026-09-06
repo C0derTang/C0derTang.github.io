@@ -14,6 +14,7 @@ import {
   rect,
   riceClump,
   shadow,
+  texRect,
   v,
   wobbly,
 } from '../draw'
@@ -154,6 +155,7 @@ export function paddyPlaneLayer(): Layer {
     [1, v('fog-color'), 0],
   ])}</defs>
     ${rect(-300, VP.y, 2200, 1060, 'url(#pd-water)')}
+    ${texRect('water', -300, VP.y, 2200, 560, 512, 0.5, 256)}
     ${streaks}
     <rect class="gfog" x="-300" y="${VP.y}" width="2200" height="320" fill="url(#pd-gfog)" opacity="0"/>
     ${polygon(

@@ -1,4 +1,5 @@
 import { HIDDEN, designToScreen, project } from './camera'
+import { TEX_MAX_SCALE } from './textures'
 import type { Cam, Layer, Projection, Pt, Rect, SceneState, StageSize } from './types'
 
 export interface Stage {
@@ -25,6 +26,7 @@ interface WriteCache {
 interface PartCache {
   vis: string
   vb: string
+  tex: string
 }
 
 export function createStage(world: HTMLElement, layers: Layer[], size: StageSize): Stage {
@@ -64,11 +66,17 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
   const partCacheFor = (key: string): PartCache => {
     let c = partCache.get(key)
     if (!c) {
-      c = { vis: '', vb: '' }
+      c = { vis: '', vb: '', tex: '' }
       partCache.set(key, c)
     }
     return c
   }
+  const texGroups = new Map<string, Element[]>()
+  for (const L of layers)
+    for (const part of L.parts) {
+      const groups = [...part.svg.querySelectorAll('.tex')]
+      if (groups.length) texGroups.set(`${L.id}/${part.id}`, groups)
+    }
   /** The visible design-space window for a projection: screen = vx + (stage - vx) * s + tx. */
   const windowOf = (p: Projection): string => {
     const k = 1 / (p.s * size.unit)
@@ -122,6 +130,17 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
           if (pc.vb !== vb) {
             pc.vb = vb
             part.svg.setAttribute('viewBox', vb)
+          }
+          const groups = texGroups.get(key)
+          if (groups) {
+            const tex = pp.s > TEX_MAX_SCALE ? 'hidden' : 'inherit'
+            if (pc.tex !== tex) {
+              pc.tex = tex
+              for (const g of groups) {
+                if (tex === 'hidden') g.setAttribute('visibility', 'hidden')
+                else g.removeAttribute('visibility')
+              }
+            }
           }
         }
         const op = p.opacity.toFixed(3)

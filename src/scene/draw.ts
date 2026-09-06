@@ -1,4 +1,5 @@
 import { mulberry32 } from '../util/math'
+import { TEX, type TexId } from './textures'
 
 /** CSS custom property reference for use inside inline SVG. */
 export const v = (token: string): string => `var(--${token})`
@@ -226,6 +227,7 @@ export function cedar(
     .join('')
   const trunk =
     rect(x - trunkW / 2, baseY - trunkH, trunkW, trunkH, `url(#${ids}-bark)`) +
+    texRect('bark', x - trunkW / 2, baseY - trunkH, trunkW, trunkH, trunkW, 0.4, trunkH) +
     rect(x - trunkW / 2, baseY - 40 * scale, trunkW, 40 * scale, `url(#${ids}-wet)`)
   return `<g class="cedar">${shadow(x, baseY, 70 * scale, 12 * scale, `${ids}-ao`, 0.4)}${back}${rim}${trunk}${boughs}</g>`
 }
@@ -515,3 +517,43 @@ export const fadeGrad = (id: string, color: string, a: number, b: number): strin
     [0, color, a],
     [1, color, b],
   ])
+
+/* ---------- texture helpers (realism pass) ---------- */
+
+/**
+ * Grid of tile images over a rect (design px); `tw`/`th` = design px per repeat. Images get their
+ * href from textures.apply() once the blobs resolve. Returns '' when textures are off, or for
+ * heavy tiles on the small level.
+ */
+export function texRect(
+  id: TexId,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  tw: number,
+  opacity: number,
+  th = tw,
+): string {
+  if (TEX.level === 'off') return ''
+  if (TEX.level === 'small' && (id === 'plaster' || id === 'water')) return ''
+  if (TEX.single)
+    return `<g class="tex"><image data-tex="${id}" x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="none" opacity="${opacity}"/></g>`
+  let out = ''
+  for (let r = 0; r < Math.ceil(h / th); r++)
+    for (let c = 0; c < Math.ceil(w / tw); c++)
+      out += `<image data-tex="${id}" x="${f(x + c * tw)}" y="${f(y + r * th)}" width="${f(tw)}" height="${f(th)}" preserveAspectRatio="none" opacity="${opacity}"/>`
+  // Grouped so the stage can hide textures once a part is magnified past TEX_MAX_SCALE.
+  return `<g class="tex">${out}</g>`
+}
+
+/** A filled shape with texture images clipped to it (one clipPath per surface). */
+export const textured = (
+  clipId: string,
+  shape: (fill: string, extra?: string) => string,
+  fill: string,
+  tex: string,
+): string =>
+  tex
+    ? `<clipPath id="${clipId}">${shape('none')}</clipPath>${shape(fill)}<g clip-path="url(#${clipId})">${tex}</g>`
+    : shape(fill)

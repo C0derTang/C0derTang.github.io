@@ -30,7 +30,8 @@ const SECONDS = 8
 async function runBench(page: Page, query: string): Promise<Report> {
   await page.goto(`/?bench=${SECONDS}${query}`)
   await page.waitForFunction(() => window.__bench?.done === true, null, {
-    timeout: (SECONDS * 2 + 15) * 1000,
+    timeout: (SECONDS * 2 + 20) * 1000,
+    polling: 500,
   })
   const r = await page.evaluate(() => window.__bench)
   if (!r) throw new Error('no bench report')

@@ -12,6 +12,7 @@ declare global {
       max: number
       dropped: number
       stalls: number
+      stallsAt: number[]
       longTasks: number
       jsP95: number
       partsMax: number

@@ -17,6 +17,8 @@ export interface BenchReport {
   dropped: number
   /** frames over 50 ms */
   stalls: number
+  /** scroll progress at each stall */
+  stallsAt: number[]
   longTasks: number
   jsP50: number
   jsP95: number
@@ -53,6 +55,7 @@ export function createBench(lenis: Lenis, air: Stage, water: Stage, textureMs: n
     max: 0,
     dropped: 0,
     stalls: 0,
+    stallsAt: [],
     longTasks: 0,
     jsP50: 0,
     jsP95: 0,
@@ -72,9 +75,14 @@ export function createBench(lenis: Lenis, air: Stage, water: Stage, textureMs: n
   }
 
   /** Called by main.ts at the end of every director frame with the frame's JS time. */
+  const stallsAt: number[] = []
   const frame = (now: number, jsMs: number): void => {
     if (!recording) return
-    if (last >= 0) intervals.push(now - last)
+    if (last >= 0) {
+      const dt = now - last
+      intervals.push(dt)
+      if (dt > 50) stallsAt.push(Math.round(lenis.progress * 1000) / 1000)
+    }
     last = now
     js.push(jsMs)
     partsMax = Math.max(partsMax, air.partCount() + water.partCount())
@@ -110,6 +118,7 @@ export function createBench(lenis: Lenis, air: Stage, water: Stage, textureMs: n
       max: intervals.length ? Math.max(...intervals) : 0,
       dropped: intervals.filter((x) => x > 25).length,
       stalls: intervals.filter((x) => x > 50).length,
+      stallsAt,
       longTasks,
       jsP50: pct(js, 0.5),
       jsP95: pct(js, 0.95),

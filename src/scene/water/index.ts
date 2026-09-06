@@ -1,6 +1,6 @@
 import type { Quality } from '../../config/quality'
 import { WATER } from '../../config/layers'
-import { ellipse, linGrad, path, polygon, rect, v, wobbly } from '../draw'
+import { ellipse, linGrad, path, polygon, rect, texRect, v, wobbly } from '../draw'
 import { fishDefs, fishMarkup, startLane, startRig, type FishSpec } from '../fish'
 import { makeSvgLayer } from '../layer'
 import type { Layer } from '../types'
@@ -114,6 +114,7 @@ function mudLayer(): Layer {
       ),
       v('mud-light'),
     )}
+    ${texRect('causticA', -280, 990, 2160, 430, 512, 0.2, 256)}
     ${stones}
     ${ellipse(420, 1000, 14, 6, '#2e2418')}${ellipse(1180, 1006, 12, 5, '#2e2418')}${ellipse(860, 1012, 10, 5, '#2e2418')}`
   return makeSvgLayer('uw-mud', WATER.mud, inner)

@@ -8,13 +8,14 @@ import {
   ellipse,
   fadeGrad,
   linGrad,
+  type P2,
   path,
   polygon,
   radGrad,
   rect,
   shadow,
+  texRect,
   v,
-  type P2,
 } from '../draw'
 import { LAMP } from '../geometry'
 import { makeSvgLayer } from '../layer'
@@ -50,6 +51,8 @@ export function interiorFrameLayer(): Layer {
     ${rect(-280, -220, 2160, 370, 'url(#in-void)')}
     ${rafters}
     ${path('M-280 150H1880V262Q800 296 -280 262Z', v('wood-dark'))}
+    <clipPath id="in-beamClip"><path d="M-280 150H1880V262Q800 296 -280 262Z"/></clipPath>
+    <g clip-path="url(#in-beamClip)">${texRect('wood', -280, 150, 2160, 150, 512, 0.35, 256)}</g>
     ${rect(-280, 150, 2160, 20, v('wood-mid'))}
     <path d="M-280 200H1880M-280 228H1880M-280 250Q800 262 1880 250" stroke="${v('wood-mid')}" stroke-width="1.5" opacity=".2" fill="none"/>
     ${ellipse(1080, 200, 380, 120, 'url(#in-beamGlow)')}
@@ -76,6 +79,8 @@ export function interiorRoomLayer(quality: Quality): Layer {
     return l + (r - l) * u
   }
   let mats = ''
+  const clipA: string[] = []
+  const clipB: string[] = []
   const rows: [number, number][] = [
     [yFar, yMid],
     [yMid, yNear],
@@ -88,7 +93,9 @@ export function interiorRoomLayer(quality: Quality): Layer {
         [xAt(y1, (c + 1) / 3), y1],
         [xAt(y1, c / 3), y1],
       ]
-      const fill = (c + ri) % 2 ? 'url(#in-matB)' : 'url(#in-matA)'
+      const odd = (c + ri) % 2 === 1
+      const fill = odd ? 'url(#in-matB)' : 'url(#in-matA)'
+      ;(odd ? clipB : clipA).push(polygon(pts, 'none'))
       mats += polygon(pts, fill)
       let weave = ''
       for (let k = 1; k < 6; k++) {
@@ -109,6 +116,10 @@ export function interiorRoomLayer(quality: Quality): Layer {
       }
     }
   })
+  const weave =
+    `<clipPath id="in-matsA">${clipA.join('')}</clipPath><clipPath id="in-matsB">${clipB.join('')}</clipPath>` +
+    `<g clip-path="url(#in-matsA)">${texRect('tatamiH', near[0], yFar, near[1] - near[0], yNear - yFar, 512, 0.3, 256)}</g>` +
+    `<g clip-path="url(#in-matsB)">${texRect('tatamiV', near[0], yFar, near[1] - near[0], yNear - yFar, 256, 0.3, 512)}</g>`
   const floorPoly: P2[] = [
     [far[0], yFar],
     [far[1], yFar],
@@ -185,6 +196,7 @@ export function interiorRoomLayer(quality: Quality): Layer {
     ${rect(-280, 180, 2160, 50, v('wood-dark'))}
     ${rect(-280, 180, 2160, 8, v('wood-mid'))}
     ${mats}
+    ${weave}
     ${polygon(floorPoly, 'url(#in-split)')}
     ${circle(1080, 1000, 420, 'url(#in-floorGlow)')}
     ${shadow(520, 1010, 90, 22, 'in-ao', 0.6)}${ellipse(520, 1010, 130, 30, v('ao-warm'), 'fill-opacity=".12"')}

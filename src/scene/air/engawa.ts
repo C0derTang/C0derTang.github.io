@@ -1,5 +1,5 @@
 import { AIR } from '../../config/layers'
-import { aoGrad, cyl, fadeGrad, linGrad, path, rect, shadow, v, wobbly } from '../draw'
+import { aoGrad, cyl, fadeGrad, linGrad, path, rect, shadow, texRect, v, wobbly } from '../draw'
 import { makeSvgLayer } from '../layer'
 import type { Layer } from '../types'
 
@@ -34,6 +34,7 @@ export function paddyEngawaLayer(): Layer {
     ${rect(-280, 100, 2160, 26, v('wood-dark'))}
     ${rect(-280, 126, 2160, 30, 'url(#pd-rafterAO)')}
     ${rect(-280, 1000, 2160, 420, v('wood-mid'))}
+    ${texRect('wood', -280, 1000, 2160, 420, 512, 0.35, 256)}
     <path d="M-280 1080H1880M-280 1160H1880M-280 1240H1880M-280 1320H1880" stroke="${v('wood-dark')}" stroke-width="2" opacity=".5"/>
     ${rect(-280, 1000, 2160, 90, 'url(#pd-floorSheen)')}
     ${rect(60, 1000, 64, 190, 'url(#pd-postRefl)')}
