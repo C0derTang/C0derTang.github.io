@@ -1,6 +1,21 @@
+import { animate } from 'animejs'
 import type { Quality } from '../../config/quality'
 import { WATER } from '../../config/layers'
-import { ellipse, linGrad, path, polygon, rect, texRect, v, wobbly } from '../draw'
+import {
+  aoGrad,
+  cyl,
+  ellipse,
+  fogRect,
+  linGrad,
+  path,
+  polygon,
+  radGrad,
+  rect,
+  shadow,
+  texRect,
+  v,
+  wobbly,
+} from '../draw'
 import { fishDefs, fishMarkup, startLane, startRig, type FishSpec } from '../fish'
 import { makeSvgLayer } from '../layer'
 import type { Layer } from '../types'
@@ -13,9 +28,14 @@ function ceilingLayer(): Layer {
     for (let x = -200; x <= 1800; x += 130) d += `q65 ${amp} 130 0`
     return d
   }
-  const inner = `
-    ${path(`${wave(300, 20)}V-220H-200Z`, '#7fb3a8', 'opacity=".55"')}
-    ${ellipse(800, 170, 450, 130, '#d7efe6', 'opacity=".35"')}
+  const inner = `<defs>${radGrad('uw-snell', [
+    [0, '#e4f3ec', 0.5],
+    [0.6, '#9fcabf', 0.25],
+    [1, '#9fcabf', 0],
+  ])}</defs>
+    ${path(`${wave(300, 20)}V-220H-200Z`, '#4f8a80', 'opacity=".55"')}
+    ${texRect('water', -200, -220, 2000, 520, 512, 0.3, 256)}
+    ${ellipse(800, 170, 450, 130, 'url(#uw-snell)')}
     ${path(wave(200, 16), 'none', `stroke="${v('uw-ray')}" stroke-width="3" opacity=".5"`)}
     ${path(wave(240, 14), 'none', `stroke="${v('uw-ray')}" stroke-width="2" opacity=".3"`)}
     ${path(wave(280, 18), 'none', `stroke="${v('uw-ray')}" stroke-width="2" opacity=".2"`)}`
@@ -43,6 +63,14 @@ function raysLayer(): Layer {
   ])}</defs><g class="rays">${rays}</g>`
   const layer = makeSvgLayer('uw-rays', { ...WATER.rays, live: true }, inner)
   const g = layer.el.querySelector('.rays')
+  if (g)
+    animate(g, {
+      translateX: [-30, 30],
+      duration: 9000,
+      loop: true,
+      alternate: true,
+      ease: 'inOutSine',
+    })
   layer.update = (state) => {
     if (g) attrWrite(g, 'opacity', state.water.rays.toFixed(3))
   }
@@ -85,22 +113,31 @@ function stemsLayer(id: string, opts: { depth: number; restCz: number }, near: b
       )
     }
   }
-  return makeSvgLayer(id, opts, stems)
+  const fog = near ? '' : fogRect('fog', -300, -300, 2200, 1800, v('uw-mid'))
+  const layer = makeSvgLayer(id, opts, stems + fog)
+  const fogEl = layer.el.querySelector('.fog')
+  if (fogEl) fogEl.setAttribute('opacity', '0.18')
+  return layer
 }
 
-function mudLayer(): Layer {
+function mudLayer(low: boolean): Layer {
   const rnd = mulberry32(93)
   let stones = ''
-  for (let i = 0; i < 14; i++)
-    stones += ellipse(
-      -200 + rnd() * 2000,
-      990 + rnd() * 40,
-      12 + rnd() * 18,
-      6 + rnd() * 8,
-      i % 2 ? '#5f5546' : '#6f6656',
-    )
-  const inner = `
-    ${rect(-280, 980, 2160, 440, v('mud'))}
+  for (let i = 0; i < 14; i++) {
+    const x = -200 + rnd() * 2000
+    const y = 990 + rnd() * 40
+    const rx = 12 + rnd() * 18
+    const ry = 6 + rnd() * 8
+    stones +=
+      shadow(x, y + ry * 0.6, rx * 1.3, ry * 0.7, 'uw-ao', 0.8) +
+      ellipse(x, y, rx, ry, 'url(#uw-stone)')
+  }
+  const inner = `<defs>${linGrad('uw-mudGrad', [
+    [0, v('mud-light')],
+    [0.2, v('mud')],
+    [1, v('mud-dark')],
+  ])}${cyl('uw-stone', '#4a4034', '#5f5546', '#7d7466', 0.3)}${aoGrad('uw-ao', v('uw-abyss'), 0.6)}</defs>
+    ${rect(-280, 980, 2160, 440, 'url(#uw-mudGrad)')}
     ${path(
       wobbly(
         [
@@ -114,10 +151,43 @@ function mudLayer(): Layer {
       ),
       v('mud-light'),
     )}
-    ${texRect('causticA', -280, 990, 2160, 430, 512, 0.2, 256)}
+    ${low ? texRect('causticA', -280, 990, 2160, 430, 512, 0.2, 256) : ''}
     ${stones}
     ${ellipse(420, 1000, 14, 6, '#2e2418')}${ellipse(1180, 1006, 12, 5, '#2e2418')}${ellipse(860, 1012, 10, 5, '#2e2418')}`
   return makeSvgLayer('uw-mud', WATER.mud, inner)
+}
+
+/** Dappled light on the mud: two caustic tiles drifting against each other (live plane), plus a compound fog plane. */
+function causticsLayer(quality: Quality): Layer {
+  const inner = `<g class="caust"><g class="ca">${texRect('causticA', -280 - 512, 992, 2160 + 1024, 430, 512, 0.2, 256)}</g><g class="cb">${texRect(
+    'causticB',
+    -280 - 666,
+    992,
+    2160 + 1332,
+    430,
+    666,
+    0.14,
+    333,
+  )}</g></g>${fogRect('fog', -300, -300, 2200, 1800, v('uw-mid'))}`
+  const layer = makeSvgLayer(
+    'uw-caustics',
+    { ...WATER.caustics, live: !quality.reducedMotion },
+    inner,
+  )
+  const g = layer.el.querySelector('.caust')
+  const ca = layer.el.querySelector('.ca')
+  const cb = layer.el.querySelector('.cb')
+  const fog = layer.el.querySelector('.fog')
+  if (fog) fog.setAttribute('opacity', '0.12')
+  if (!quality.reducedMotion) {
+    // One loop = exactly one tile period in opposite directions, so the wrap never shows.
+    if (ca) animate(ca, { translateX: [0, 512], duration: 16000, ease: 'linear', loop: true })
+    if (cb) animate(cb, { translateX: [0, -666], duration: 26000, ease: 'linear', loop: true })
+  }
+  layer.update = (state) => {
+    if (g) attrWrite(g, 'opacity', state.water.rays.toFixed(3))
+  }
+  return layer
 }
 
 /** A layer of swimming fish: hidden lanes + rigged fish groups; reveal index picks the fade. */
@@ -129,15 +199,16 @@ function fishLayer(
   quality: Quality,
 ): Layer {
   const prefix = `${id}-`
-  const inner = `${fishDefs(prefix)}${specs.map((spec) => fishMarkup(spec, prefix)).join('')}`
+  const inner = `${fishDefs(prefix)}${specs.map((spec) => fishMarkup(spec, prefix, which === 0)).join('')}`
   const layer = makeSvgLayer(id, { ...opts, live: !quality.reducedMotion }, inner)
   const svgEl = layer.el.querySelector('svg')
   layer.mount = () => {
     for (const spec of specs) {
       const mover = layer.el.querySelector(`[data-fish="${spec.id}"]`)
       const lane = layer.el.querySelector<SVGPathElement>(`[data-lane="${spec.id}"]`)
+      const shadowEl = layer.el.querySelector(`[data-shadow="${spec.id}"]`)
       if (!mover || !lane) continue
-      startLane(mover, lane, spec, quality.reducedMotion)
+      startLane(mover, lane, spec, quality.reducedMotion, shadowEl)
       if (!quality.reducedMotion) startRig(mover, spec.species)
     }
   }
@@ -172,12 +243,13 @@ export function buildWaterLayers(quality: Quality): Layer[] {
             scale: 0.5 + (i % 3) * 0.07,
             lane: LANES.school,
             duration: 30 + i * 1.5,
-            offset: i * 0.13,
+            offset: 0.05 + i * 0.13,
           })),
           1,
           quality,
         ),
-    mudLayer(),
+    mudLayer(low),
+    low ? null : causticsLayer(quality),
     fishLayer(
       'fish-mid',
       WATER.fishMid,

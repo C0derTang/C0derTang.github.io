@@ -11,6 +11,8 @@
 #stage-water {
   z-index: 1;
   visibility: hidden;
+  /* the window is translated up to -10% of the viewport at the end of the dive: keep it covering */
+  bottom: -20%;
 }
 .waterline {
   position: fixed;
@@ -43,10 +45,15 @@
 #stage-water .world {
   will-change: transform;
 }
-/* Layers paint straight into the stage; only layers with ambient animation get composited. */
+/* Layers paint straight into the stage; only layers with ambient animation get composited.
+   Heights follow the measured viewport (--stage-h) because the water stage box is taller than
+   the viewport so its window can slide up during the dive. */
 .layer {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--stage-h, 100%);
   overflow: hidden;
 }
 .layer[data-live='1'] {
@@ -92,7 +99,10 @@
 }
 .backdrop {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--stage-h, 100%);
   background: linear-gradient(
     180deg,
     var(--uw-surface) 0%,
@@ -103,9 +113,10 @@
 }
 .fx {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 100%;
-  height: 100%;
+  height: var(--stage-h, 100%);
   display: block;
   pointer-events: none;
 }

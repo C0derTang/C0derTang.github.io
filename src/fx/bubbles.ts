@@ -83,8 +83,8 @@ export function createBubbles(canvas: Canvas2D, quality: Quality): Fx {
       const reveal = state.water.fishReveal[0]
 
       // Marine snow.
-      ctx.fillStyle = rgba(PALETTE.bubbleRim, 0.25)
       for (const s of specks) {
+        ctx.fillStyle = rgba(s.r > 1.8 ? PALETTE.silt : PALETTE.bubbleRim, s.r > 1.8 ? 0.1 : 0.25)
         if (dt > 0) {
           s.x += s.vx * dt
           s.y += s.vy * dt

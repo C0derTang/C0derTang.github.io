@@ -18,6 +18,8 @@ export interface Cam {
   cz: number
   cx: number
   cy: number
+  /** focal length override (lens breathing); P when absent */
+  p?: number
 }
 
 export interface Projection {
@@ -115,6 +117,8 @@ export interface RainState {
   groundY: number | null
   /** eave drip line in screen px (null = none) */
   eave: { x0: number; x1: number; y: number } | null
+  /** shoji paper rects (screen px) that show rain running down outside (null = none) */
+  paperClip: Rect[] | null
 }
 
 export interface RippleState {

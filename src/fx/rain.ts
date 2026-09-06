@@ -42,6 +42,7 @@ export function createRain(canvas: Canvas2D, quality: Quality): Fx {
   const rnd = mulberry32(7)
   const bands: Drop[][] = BANDS.map(() => [])
   const drips: Drop[] = []
+  const paper: Drop[] = []
   const rings: Ring[] = []
   let W = 1
   let H = 1
@@ -145,6 +146,45 @@ export function createRain(canvas: Canvas2D, quality: Quality): Fx {
           ctx.lineTo(d.x, d.y - 14)
         }
         ctx.stroke()
+      }
+
+      // Rain running down the outside of the shoji paper: slow, wide, faint shadows.
+      const paperClip = state.rain.paperClip
+      if (paperClip?.length) {
+        if (paper.length === 0)
+          for (let k = 0; k < 25 * quality.particleMul; k++)
+            paper.push({ x: rnd(), y: rnd() * H, v: 0.8 + rnd() * 0.4 })
+        ctx.save()
+        clipRects(ctx, paperClip)
+        ctx.strokeStyle = 'rgba(60,50,40,.06)'
+        ctx.lineWidth = 6
+        ctx.lineCap = 'round'
+        ctx.beginPath()
+        const span = paperClip.reduce((a, r) => a + Math.max(0, r.w), 0)
+        for (const d of paper) {
+          if (dt > 0) {
+            d.y += 500 * d.v * dt
+            if (d.y > H + 40) {
+              d.y = -40
+              d.x = rnd()
+            }
+          }
+          // map the 0..1 x onto the union of the paper rects
+          let px = d.x * span
+          let sx = 0
+          for (const r of paperClip) {
+            if (px <= r.w) {
+              sx = r.x + px
+              break
+            }
+            px -= r.w
+            sx = r.x + r.w
+          }
+          ctx.moveTo(sx + 2, d.y)
+          ctx.lineTo(sx - 2, d.y - 0.08 * H)
+        }
+        ctx.stroke()
+        ctx.restore()
       }
 
       // Splash rings.

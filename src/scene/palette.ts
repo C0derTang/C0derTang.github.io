@@ -6,6 +6,7 @@ export const PALETTE = {
   bubbleRim: '#cfe8dd',
   splash: '#e6eef0',
   uwDeep: '#1c3f4e',
+  silt: '#c8d6c9',
 } as const
 
 export function rgba(hex: string, a: number): string {

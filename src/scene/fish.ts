@@ -1,5 +1,5 @@
 import { animate } from 'animejs'
-import { circle, ellipse, f, linGrad, path, pivot, rect, v } from './draw'
+import { circle, ellipse, f, linGrad, path, pivot, radGrad, rect, v } from './draw'
 
 /**
  * Three rice-paddy fish as SVG rigs in a local 200x80 box (head at the right).
@@ -27,14 +27,37 @@ const DEFS_ID = 'fish-defs'
 export function fishDefs(prefix: string): string {
   return `<defs id="${prefix}${DEFS_ID}">
     ${linGrad(`${prefix}funaBody`, [
-      [0, v('funa')],
-      [0.7, v('funa-belly')],
+      [0, v('funa-back')],
+      [0.45, v('funa')],
+      [0.8, v('funa-belly')],
+      [1, '#dfe3d2'],
+    ])}
+    ${linGrad(`${prefix}koiWhite`, [
+      [0, v('koi-white-lit')],
+      [0.4, v('koi-white')],
+      [0.75, '#cfc6b6'],
+      [1, v('koi-white-shade')],
+    ])}
+    ${linGrad(`${prefix}koiOrange`, [
+      [0, v('koi-orange-lit')],
+      [0.4, v('koi-orange')],
+      [1, v('koi-orange-deep')],
+    ])}
+    ${linGrad(`${prefix}dojoBody`, [
+      [0, '#6a6650'],
+      [0.5, v('loach')],
+      [1, '#3a3828'],
+    ])}
+    ${radGrad(`${prefix}ao`, [
+      [0, v('uw-abyss'), 0.6],
+      [0.6, v('uw-abyss'), 0.25],
+      [1, v('uw-abyss'), 0],
     ])}
   </defs>`
 }
 
-export function koi(variant: KoiVariant = 'kohaku'): string {
-  const body = variant === 'orange' ? v('koi-orange') : v('koi-white')
+export function koi(variant: KoiVariant = 'kohaku', prefix = ''): string {
+  const body = variant === 'orange' ? `url(#${prefix}koiOrange)` : `url(#${prefix}koiWhite)`
   const belly = variant === 'orange' ? v('koi-orange-deep') : '#d8cfbe'
   const patches =
     variant === 'kohaku'
@@ -85,13 +108,14 @@ export function koi(variant: KoiVariant = 'kohaku'): string {
   </g>`
 }
 
-export function dojo(): string {
+export function dojo(prefix = ''): string {
+  const body = `url(#${prefix}dojoBody)`
   const speck = (x: number, y: number) => circle(x, y, 1.8, v('loach-spot'))
   const belly = (x0: number, x1: number) =>
     rect(x0, 43, x1 - x0, 7, v('loach-belly'), 'rx="3" opacity=".8"')
   // Head cap, then three overlapping body segments that taper toward a small rounded tail.
   const head =
-    path('M150 24C170 22 186 24 194 32C199 37 199 43 194 48C186 56 170 58 150 56Z', v('loach')) +
+    path('M150 24C170 22 186 24 194 32C199 37 199 43 194 48C186 56 170 58 150 56Z', body) +
     belly(152, 190) +
     circle(184, 34, 2.5, v('koi-ink')) +
     path(
@@ -102,20 +126,20 @@ export function dojo(): string {
     speck(160, 31) +
     speck(174, 30)
   const seg2 =
-    path('M98 26C116 22 140 22 158 26L158 54C140 58 116 58 98 54Z', v('loach')) +
+    path('M98 26C116 22 140 22 158 26L158 54C140 58 116 58 98 54Z', body) +
     belly(100, 156) +
     path('M110 26C118 17 134 17 142 26Z', v('loach-belly'), 'opacity=".9"') +
     speck(118, 31) +
     speck(134, 35) +
     speck(108, 38)
   const seg3 =
-    path('M48 29C66 25 90 25 106 27L106 53C90 55 66 55 48 51Z', v('loach')) +
+    path('M48 29C66 25 90 25 106 27L106 53C90 55 66 55 48 51Z', body) +
     belly(50, 104) +
     speck(64, 33) +
     speck(84, 30)
   const tail =
-    path('M22 33C32 30 44 29 56 30L56 50C44 51 32 50 22 47Z', v('loach')) +
-    ellipse(14, 40, 11, 12, v('loach')) +
+    path('M22 33C32 30 44 29 56 30L56 50C44 51 32 50 22 47Z', body) +
+    ellipse(14, 40, 11, 12, body) +
     belly(24, 54)
   return `<g class="fish dojo" data-species="dojo">
     ${pivot(
@@ -135,6 +159,7 @@ export function dojo(): string {
 
 export function funa(prefix: string): string {
   return `<g class="fish funa" data-species="funa">
+    ${ellipse(120, 24, 24, 5, '#ffffff', 'opacity=".25"')}
     ${pivot(46, 40, 'rig-tail', path('M46 40L6 14L14 40L6 66Z', v('funa-fin')))}
     ${pivot(92, 40, 'rig-rear', path('M92 22C74 26 58 34 44 40C58 46 74 54 92 58Z', v('funa')))}
     ${path('M44 40C70 12 110 8 140 14C170 20 188 30 196 40C188 50 170 60 140 66C110 72 70 68 44 40Z', `url(#${prefix}funaBody)`)}
@@ -148,11 +173,18 @@ export function funa(prefix: string): string {
   </g>`
 }
 
-export function fishMarkup(spec: FishSpec, prefix: string): string {
+export function fishMarkup(spec: FishSpec, prefix: string, withShadow = true): string {
   const inner =
-    spec.species === 'koi' ? koi(spec.variant) : spec.species === 'dojo' ? dojo() : funa(prefix)
+    spec.species === 'koi'
+      ? koi(spec.variant, prefix)
+      : spec.species === 'dojo'
+        ? dojo(prefix)
+        : funa(prefix)
+  const shadow = withShadow
+    ? `<ellipse class="fish-shadow" data-shadow="${spec.id}" rx="${f(60 * spec.scale)}" ry="${f(10 * spec.scale)}" fill="url(#${prefix}ao)" opacity="0"/>`
+    : ''
   return `<path class="lane" data-lane="${spec.id}" d="${spec.lane}" fill="none" stroke="none"/>
-    <g class="fish-mover" data-fish="${spec.id}"><g transform="scale(${f(spec.scale)}) translate(-100 -40)">${inner}</g></g>`
+    ${shadow}<g class="fish-mover" data-fish="${spec.id}"><g transform="scale(${f(spec.scale)}) translate(-100 -40)">${inner}</g></g>`
 }
 
 const loop = { loop: true, alternate: true, ease: 'inOutSine' } as const
@@ -191,9 +223,11 @@ export function startLane(
   lane: SVGPathElement,
   spec: FishSpec,
   reduced: boolean,
+  shadowEl: Element | null = null,
 ): void {
   const total = lane.getTotalLength()
   if (!(total > 0)) return
+  const MUD_Y = 985
   const place = (len: number) => {
     const wrap = (l: number) => ((l % total) + total) % total
     const p = lane.getPointAtLength(wrap(len))
@@ -208,12 +242,16 @@ export function startLane(
       'transform',
       `translate(${f(p.x)} ${f(p.y)}) rotate(${f(deg)})${left ? ' scale(-1 1)' : ''}`,
     )
+    if (shadowEl) {
+      // Contact shadow on the mud: strongest for a fish hugging the bottom, faint mid-water.
+      const strength = 0.35 * (1 - Math.min(1, Math.max(0, (MUD_Y - p.y) / 700)))
+      shadowEl.setAttribute('transform', `translate(${f(p.x)} ${f(MUD_Y)})`)
+      shadowEl.setAttribute('opacity', strength.toFixed(3))
+    }
   }
   const start = (spec.offset ?? 0) * total
-  if (reduced) {
-    place(start)
-    return
-  }
+  place(start) // initial pose; the loop below only advances it
+  if (reduced) return
   const state = { len: start }
   animate(state, {
     len: start + total,

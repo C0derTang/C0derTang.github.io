@@ -2,6 +2,7 @@ import type { Quality } from '../config/quality'
 import type { SceneState, StageSize } from '../scene/types'
 import { createBubbles } from './bubbles'
 import { createCanvas2D } from './canvas'
+import { createMotes } from './motes'
 import { createRain } from './rain'
 import { createRipples } from './ripples'
 import type { Fx } from './types'
@@ -16,6 +17,7 @@ export function createFx(
   const water = createCanvas2D(waterCanvas)
   const rain = createRain(air, quality)
   const ripples = createRipples(air, quality)
+  const motes = createMotes(air, quality)
   const bubbles = createBubbles(water, quality)
   return {
     resize(size: StageSize) {
@@ -23,12 +25,14 @@ export function createFx(
       water.resize(size)
       rain.resize(size)
       ripples.resize(size)
+      motes.resize(size)
       bubbles.resize(size)
     },
     update(state: SceneState) {
       air.clear()
       ripples.update(state)
       rain.update(state)
+      motes.update(state)
       bubbles.update(state)
     },
   }

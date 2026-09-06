@@ -79,6 +79,7 @@ export const WATER = {
   stemsFar: { depth: 800, restCz: 0 },
   fishBack: { depth: 700, restCz: 0 },
   mud: { depth: 450, restCz: 0 },
+  caustics: { depth: 420, restCz: 0 },
   fishMid: { depth: 300, restCz: 0 },
   fishNear: { depth: -100, restCz: 0 },
   stemsNear: { depth: -150, restCz: 0 },

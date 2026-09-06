@@ -72,6 +72,7 @@ function measure(w: number, h: number): void {
   for (const st of [stageAir, stageWater]) {
     st.style.setProperty('--vx', `${size.vx.toFixed(2)}px`)
     st.style.setProperty('--vy', `${size.vy.toFixed(2)}px`)
+    st.style.setProperty('--stage-h', `${h.toFixed(2)}px`)
   }
 }
 measure(stageAir.clientWidth, stageAir.clientHeight)
@@ -120,8 +121,14 @@ director.onFrame((f) => {
     state.water.visible && state.wl > -0.15 * size.h ? 'visible' : 'hidden',
   )
   const wl = state.wl.toFixed(2)
+  // Underwater float: a slow bob on the composited water world (time-based, compositor-only).
+  const bob = state.water.visible && !quality.reducedMotion ? 4 * Math.sin(f.time / 1400) : 0
   styleWrite(stageWater, 'transform', `translate3d(0,${wl}px,0)`)
-  styleWrite(waterWorld, 'transform', `translate3d(0,${(-state.wl + state.sinkTy).toFixed(2)}px,0)`)
+  styleWrite(
+    waterWorld,
+    'transform',
+    `translate3d(0,${(-state.wl + state.sinkTy + bob).toFixed(2)}px,0)`,
+  )
   styleWrite(waterline, 'transform', `translate3d(0,${wl}px,0)`)
 
   fx.update(state)

@@ -20,12 +20,15 @@ interface Projectable {
  * s = 1 when cam.cz === restCz, grows to infinity as the plane reaches the eye.
  */
 export function project(L: Projectable, cam: Cam, unit: number): Projection {
-  const dist = P + L.depth - cam.cz
   const zr = (cam.cz - L.depth) / P
-  if (dist <= P * (1 - NEAR_CLIP)) return { ...HIDDEN, zr }
-  const k = P / dist
+  if (P + L.depth - cam.cz <= P * (1 - NEAR_CLIP)) return { ...HIDDEN, zr }
+  // Lens breathing changes the focal length for scale and parallax only; zr and the near clip
+  // keep the constant P so fade windows never move.
+  const p = cam.p ?? P
+  const dist = p + L.depth - cam.cz
+  const k = p / dist
   return {
-    s: (P + L.depth - L.restCz) / dist,
+    s: (p + L.depth - L.restCz) / dist,
     tx: -cam.cx * k * unit,
     ty: -cam.cy * k * unit,
     opacity: L.fade ? 1 - smoothstep(L.fade[0], L.fade[1], zr) : 1,
@@ -39,7 +42,23 @@ const czOf = monotoneCubic(CAM_Z_KEYS)
 const cyOf = monotoneCubic(CAM_Y_KEYS)
 const cxOf = monotoneCubic(CAM_X_KEYS)
 
-export const camera = (t: number): Cam => ({ cz: czOf(t), cx: cxOf(t), cy: cyOf(t) })
+const bump = (t: number, c: number, w: number): number => Math.max(0, 1 - Math.abs(t - c) / w) ** 2
+
+/**
+ * Camera path plus, unless `still`, a handheld sway (pure in t: ±6 / ±4 design px, ~11 screen px on
+ * the house plane and under 1 px on the mountains) and a lens-breathing pulse at the two
+ * pass-throughs. Nothing here depends on wall-clock time, so frames stay reproducible.
+ */
+export const camera = (t: number, still = false): Cam => {
+  const base = { cz: czOf(t), cx: cxOf(t), cy: cyOf(t) }
+  if (still) return base
+  return {
+    cz: base.cz,
+    cx: base.cx + 6 * Math.sin(t * Math.PI * 58 + 0.7),
+    cy: base.cy + 4 * Math.sin(t * Math.PI * 34 + 1.3),
+    p: P - 50 * (bump(t, 0.375, 0.035) + bump(t, 0.605, 0.03)),
+  }
+}
 
 /** Design px -> stage px (before the layer transform). */
 export const designToStage = (pt: Pt, size: StageSize): Pt => ({

@@ -25,7 +25,7 @@ export function computeState(
   const u = {} as Record<BeatId, number>
   for (const id of BEAT_IDS) u[id] = local(t, BEATS[id])
 
-  let cam: Cam = camera(t)
+  let cam: Cam = camera(t, quality.reducedMotion)
   let doors = easeInOutCubic(u.doors)
   const uDive = u.dive
   const uw = u.underwater
@@ -33,7 +33,7 @@ export function computeState(
   if (quality.reducedMotion) {
     // Stills: hold each beat's end camera; boundaries fade through dark (see grade below).
     const [, end] = BEATS[beat]
-    cam = camera(beat === 'exterior' ? 0.04 : Math.min(end, 0.74))
+    cam = camera(beat === 'exterior' ? 0.04 : Math.min(end, 0.74), true)
     doors = t >= BEATS.doors[0] + 0.02 ? 1 : 0
   }
 
@@ -53,21 +53,37 @@ export function computeState(
   let rainClip: Rect[] | null = null
   let groundY: number | null = null
   let eave: { x0: number; x1: number; y: number } | null = null
+  let paperClip: Rect[] | null = null
   if (!airVisible) {
     rainAlpha = 0
-  } else if (houseVisible && houseP.zr <= 0.45) {
-    // Outside: rain everywhere, splashing on the gravel and dripping off the eave.
-    rainAlpha = houseP.opacity
-    groundY = designToScreen({ x: 800, y: HOUSE.gravelY }, houseP, size).y
-    const e0 = designToScreen({ x: 300, y: HOUSE.eaveY }, houseP, size)
-    const e1 = designToScreen({ x: 1330, y: HOUSE.eaveY }, houseP, size)
-    eave = { x0: e0.x, x1: e1.x, y: e0.y }
+  } else if (houseVisible && houseP.zr <= 0.72) {
+    // Outside: only the rain between the camera and the wall is visible, so it thins out as the
+    // camera approaches the doorway; splashes and eave drips only while the yard is in view.
+    rainAlpha = houseP.opacity * Math.max(0, 1 - Math.max(0, houseP.zr)) ** 1.5
+    if (houseP.zr <= 0.45) {
+      groundY = designToScreen({ x: 800, y: HOUSE.gravelY }, houseP, size).y
+      const e0 = designToScreen({ x: 300, y: HOUSE.eaveY }, houseP, size)
+      const e1 = designToScreen({ x: 1330, y: HOUSE.eaveY }, houseP, size)
+      eave = { x0: e0.x, x1: e1.x, y: e0.y }
+    }
   } else if (shojiVisible && shojiP.opacity > 0.5) {
-    // Under the eave and inside: rain is only seen through the back-wall openings.
+    // Under the eave and inside: rain is only seen through the back-wall openings, and as
+    // shadows running down the paper on either side of the gap.
     rainAlpha = 1
+    const gap = openingRect(doors)
     rainClip = [
-      designRectToScreen(openingRect(doors), shojiP, size),
+      designRectToScreen(gap, shojiP, size),
       designRectToScreen(SHOJI.sideWindow, shojiP, size),
+    ]
+    const y = SHOJI.y
+    const h = SHOJI.panelH
+    paperClip = [
+      designRectToScreen({ x: SHOJI.x0, y, w: gap.x - SHOJI.x0, h }, shojiP, size),
+      designRectToScreen(
+        { x: gap.x + gap.w, y, w: SHOJI.x0 + 4 * SHOJI.panelW - gap.x - gap.w, h },
+        shojiP,
+        size,
+      ),
     ]
   } else {
     rainAlpha = 1
@@ -125,7 +141,7 @@ export function computeState(
     cam,
     waterCam: { cz: lerp(0, 150, uw), cx: 0, cy: 0 },
     doors,
-    rain: { alpha: rainAlpha, clip: rainClip, groundY, eave },
+    rain: { alpha: rainAlpha, clip: rainClip, groundY, eave, paperClip },
     ripples: { strength: rippleStrength, horizonY, polygon, clip: rainClip },
     wl,
     sinkTy,
