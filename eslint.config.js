@@ -49,5 +49,6 @@ export default defineConfig([
   {
     files: ['vite.config.ts', 'playwright.config.ts', 'e2e/**/*.ts'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
+    rules: { 'no-console': 'off' },
   },
 ])

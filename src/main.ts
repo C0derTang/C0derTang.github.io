@@ -12,6 +12,7 @@ import type { SceneState, StageSize } from './scene/types'
 import { buildWaterLayers } from './scene/water'
 import { mountWaterline } from './scene/waterline'
 import { createDirector } from './scroll/director'
+import { createBench } from './ui/bench'
 import { createHud } from './ui/debug'
 import { createOverlay } from './ui/overlay'
 import { mustGet, styleWrite } from './util/dom'
@@ -31,7 +32,8 @@ declare global {
 
 history.scrollRestoration = 'manual'
 
-const quality = detectQuality()
+const params = new URLSearchParams(location.search)
+const quality = detectQuality(params)
 const html = document.documentElement
 html.dataset.tier = quality.tier
 html.style.setProperty('--scroll-len', String(SCROLL_LEN_VH[quality.tier]))
@@ -70,7 +72,6 @@ fx.resize(size)
 mountWaterline(waterline)
 const overlay = createOverlay(mustGet('#overlay'))
 const gradeStack = createGradeStack()
-const params = new URLSearchParams(location.search)
 const hud = params.has('debug') ? createHud(air, water, quality.tier) : null
 
 const lenis = new Lenis({
@@ -81,8 +82,11 @@ const lenis = new Lenis({
 })
 const director = createDirector(lenis)
 
+const bench = params.has('bench') ? createBench(lenis, air, water, 0) : null
+
 let lastState: SceneState | undefined
 director.onFrame((f) => {
+  const t0 = performance.now()
   const state = computeState(f.t, f.time, f.dt, size, quality)
   lastState = state
   air.render(state, state.cam)
@@ -105,6 +109,7 @@ director.onFrame((f) => {
   overlay.update(state)
   gradeStack.apply(state.grade)
   hud?.update(state)
+  bench?.frame(t0, performance.now() - t0)
 })
 
 const ro = new ResizeObserver((entries) => {
@@ -121,8 +126,21 @@ const ro = new ResizeObserver((entries) => {
 ro.observe(stageAir)
 director.start()
 
-// Dev hooks: ?t=0.35 seeks, &freeze holds time, ?debug shows the HUD,
+// Dev hooks: ?t=0.35 seeks, &freeze holds time, ?debug shows the HUD, ?bench=<s> sweeps,
+// ?only=<ids> / ?skip=<ids> toggle layers for cost-by-exclusion, ?tier=high|low forces a tier,
 // ?preview=<layerId> shows one layer at scale 1 with its viewBox edge for bleed checks.
+const only = params.get('only')?.split(',')
+const skip = params.get('skip')?.split(',')
+if (only || skip) {
+  for (const L of [...air.layers, ...water.layers]) {
+    const off = (only !== undefined && !only.includes(L.id)) || (skip?.includes(L.id) ?? false)
+    if (off) {
+      L.el.style.display = 'none'
+      L.range = [2, 3]
+    }
+  }
+}
+if (bench) void bench.run(Number(params.get('bench')) || 10)
 const preview = params.get('preview')
 if (preview) {
   for (const L of [...air.layers, ...water.layers]) {

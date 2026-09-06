@@ -4,6 +4,18 @@ declare global {
       seek(t: number): void
       freeze(on: boolean): void
     }
+    __bench?: {
+      done: boolean
+      p50: number
+      p95: number
+      p99: number
+      max: number
+      longTasks: number
+      jsP95: number
+      partsMax: number
+      liveMax: number
+      textureMs: number
+    }
   }
 }
 

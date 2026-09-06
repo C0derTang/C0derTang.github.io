@@ -11,7 +11,10 @@ export interface Stage {
   resize(size: StageSize): void
   /** Force every cached write to be re-emitted next frame. */
   invalidate(): void
+  /** Visible layers this frame. */
   liveCount(): number
+  /** viewBox windows written this frame (== visible layers until parts land). */
+  partCount(): number
 }
 
 interface WriteCache {
@@ -122,5 +125,6 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
       lastClip = ''
     },
     liveCount: () => live,
+    partCount: () => live,
   }
 }
