@@ -18,7 +18,7 @@ export function buildAirLayers(quality: Quality): Layer[] {
     low ? null : mtnFarLayer(quality),
     mtnNearLayer(),
     treelineLayer(),
-    low ? null : paddyFarLayer(quality),
+    paddyFarLayer(quality, low),
     paddyPlaneLayer(),
     paddyRiceNearLayer(),
     paddyEngawaLayer(),

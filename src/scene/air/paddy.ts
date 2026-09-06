@@ -36,7 +36,7 @@ const VP = { x: 800, y: PADDY.horizonY }
  * under parallax), broken into eight drifting ripple bands and faded by a Fresnel gradient.
  * Live: the bands animate.
  */
-export function paddyFarLayer(quality: Quality): Layer {
+export function paddyFarLayer(quality: Quality, staticBands = false): Layer {
   const H = 700
   const squash = 0.55
   // Mirror about the water line with a vertical squash; the mirrored groups are drawn through
@@ -140,11 +140,12 @@ export function paddyFarLayer(quality: Quality): Layer {
     </g>
     ${fogRect('fog', -500, 590, 2600, 130)}`
   const mist = `${ellipse(300, 760, 700, 26, 'url(#pd-mist)')}${ellipse(1000, 775, 900, 30, 'url(#pd-mist)')}${ellipse(1500, 755, 700, 28, 'url(#pd-mist)')}`
-  const layer = makeSvgLayer('paddy-far', { ...AIR.paddyFar, live: !quality.reducedMotion }, [
+  const animated = !quality.reducedMotion && !staticBands
+  const layer = makeSvgLayer('paddy-far', { ...AIR.paddyFar, live: animated }, [
     { part: 'horizon', inner },
     { part: 'mist', inner: mist },
   ])
-  if (!quality.reducedMotion) {
+  if (animated) {
     for (const g of layer.el.querySelectorAll('.rband')) {
       const i = Number((g as HTMLElement).dataset.i ?? 0)
       animate(g, {

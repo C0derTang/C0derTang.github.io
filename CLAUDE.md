@@ -2,7 +2,8 @@
 
 Personal site of Christopher Tang: one page that plays a scroll-driven scene — a rainy Japanese
 farmhouse you dolly into, leave through the back shoji, cross a rice paddy, and sink under the
-water to the fish (rice-fish polyculture). CSS-transform + inline-SVG layers, canvas particles.
+water to the fish (rice-fish polyculture). Inline-SVG layers in stylized realism (one light
+story, shaded volumes, procedural material tiles, reflections, caustics), canvas particles.
 No routing, no framework, no CMS. Scrolling is the only input; every pixel is a deterministic
 function of scroll progress `t` (plus wall-clock time for ambient loops). Live at
 https://c0dertang.github.io/ (GitHub Pages, `gh-pages` branch, served at `/`, no CNAME).
@@ -44,7 +45,9 @@ via `packageManager` (pnpm switches versions itself; corepack is not used).
 - `src/fx/*` canvas rain / ripples / bubbles (time-based, seeded), `grade.ts` lighting keyframes
 - `src/ui/overlay.ts`, `src/ui/debug.ts`
 - `src/styles/*` `tokens.css` (palette + grade vars), `fonts.css`, `stage.css`, `type.css`, `overlay.css`
-- `e2e/smoke.spec.ts` Playwright: seeks every beat, screenshots, asserts no console errors
+- `e2e/smoke.spec.ts` Playwright: seeks every beat, screenshots, no console errors, live-plane budget, texture
+  hrefs, DOM purity forward vs backward
+- `e2e/bench.spec.ts` paint benchmark against `bench.baseline.json` (`BENCH=1 pnpm bench`; `BENCH_MODE=bisect`)
 
 ## Scroll model
 
@@ -65,6 +68,20 @@ was tried first: Chrome rasterized bleed x scale^2 pixels per `will-change` laye
 tile memory on the way back out, and blanked whole layers (even the HUD). Only layers with
 ambient animation (`live: true`) get composited (`will-change: opacity`); the rest paint straight
 into the stage.
+
+A layer is an outer stage-px `<svg>` holding nested `<svg data-part>` viewports ("parts"), each
+projected at its own depth (`parts` in `config/layers.ts`): micro-parallax inside one object
+(roof / walls / posts, cedars on three depths) for one viewBox write per part and no extra
+composited planes. Rules: parts never interleave with neighbouring layers' depths; the nearest
+part must satisfy `depth >= layer.depth + 1000 * fade[1] - 880` (dev warning otherwise); never
+split an object from the plane it stands on (rice rows stay on the water); duplicate a contact
+band in both parts where a split is wanted (porch band in walls and posts). The low tier merges
+parts into one viewport (`quality.microParallax`).
+
+The camera adds a pure-in-`t` handheld sway and a lens-breathing pulse (`cam.p`) at the two
+pass-throughs; `zr` and the near clip keep the constant P so fade windows never move. Never put
+time-based motion on `cam` (it would defeat the viewBox write cache and repaint every layer while
+idle); the only time-based camera motion is the compositor-only bob on the water world.
 
 ## Conventions
 
@@ -110,7 +127,11 @@ visible` for bleed. Keep what matters inside the portrait core zone x 530–1070
   `http://localhost:5173/?debug&freeze&t=<f>` for f in 0, .15, .35, .5, .7, .9, 1; screenshot
   each; `browser_console_messages` has no errors; a backward pass 1 -> .5 -> .35 -> 0 must
   match the forward shots; `page.emulateMedia({ reducedMotion: 'reduce' })` shows stills.
-- `pnpm test:e2e` is the automated form (builds, previews, seeks every beat).
+- `pnpm test:e2e` is the automated form (builds, previews, seeks every beat); `BENCH=1 pnpm bench`
+  (or `?bench=8` in the browser, report in `window.__bench`) is the paint budget; `?skip=<ids>` /
+  `?only=<ids>` isolate layer cost; `?tier=high|low` forces a quality tier.
+- Benchmark on an idle machine in headless Chromium: a headed Chrome window that is occluded or
+  a busy CPU produce 200 ms stalls that are not in the page.
 
 ## Deploy
 
@@ -126,4 +147,6 @@ merge via PR.
 - add dependencies beyond lenis/animejs/fontsource without asking
 - use npm/yarn, commit `package-lock.json`, or bump TypeScript to 7 while typescript-eslint lacks support
 - do per-frame work outside the director loop; put CSS transforms or `will-change` on scene layers
+- add `<filter>`, `<mask>`, `<pattern>` or big `<g opacity>` groups inside layers; add live planes without
+  checking the budget
 - commit directly to `main`

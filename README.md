@@ -16,10 +16,13 @@ pnpm build      # typecheck + production build to dist/
 pnpm preview    # serve dist/ on http://localhost:4173
 pnpm lint && pnpm typecheck && pnpm format:check
 pnpm test:e2e   # Playwright smoke test (first: pnpm exec playwright install chromium)
+pnpm bench      # headless paint benchmark against e2e/bench.baseline.json
 ```
 
 Dev URL hooks: `?debug` (HUD), `?t=0.35` (seek), `&freeze` (deterministic frame),
-`?preview=<layerId>` (one layer with its bleed edge).
+`?preview=<layerId>` (one layer with its bleed edge), `?bench=8` (paint benchmark, report in
+`window.__bench`), `?skip=<ids>` / `?only=<ids>` (layer cost by exclusion), `?tier=high|low`,
+`?tex=off|small|full` (material tiles).
 
 Requires Node >= 22.13 and pnpm 10 (pinned in `package.json`; pnpm switches to it automatically).
 Architecture, the scroll-beat model and conventions are in `CLAUDE.md`.
