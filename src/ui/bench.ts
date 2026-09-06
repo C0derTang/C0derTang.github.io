@@ -23,7 +23,10 @@ export interface BenchReport {
   jsP50: number
   jsP95: number
   partsMax: number
+  /** peak composited (`live`) planes across both worlds */
   liveMax: number
+  /** peak layers visible by projection across both worlds (hidden stage included) */
+  visibleMax: number
   textureMs: number
 }
 
@@ -46,6 +49,7 @@ export function createBench(lenis: Lenis, air: Stage, water: Stage, textureMs: n
   let longTasks = 0
   let partsMax = 0
   let liveMax = 0
+  let visibleMax = 0
   const report: BenchReport = {
     done: false,
     frames: 0,
@@ -61,6 +65,7 @@ export function createBench(lenis: Lenis, air: Stage, water: Stage, textureMs: n
     jsP95: 0,
     partsMax: 0,
     liveMax: 0,
+    visibleMax: 0,
     textureMs,
   }
   window.__bench = report
@@ -87,6 +92,7 @@ export function createBench(lenis: Lenis, air: Stage, water: Stage, textureMs: n
     js.push(jsMs)
     partsMax = Math.max(partsMax, air.partCount() + water.partCount())
     liveMax = Math.max(liveMax, air.liveCount() + water.liveCount())
+    visibleMax = Math.max(visibleMax, air.visibleCount() + water.visibleCount())
   }
 
   const sweep = (to: number, seconds: number): Promise<void> =>
@@ -124,6 +130,7 @@ export function createBench(lenis: Lenis, air: Stage, water: Stage, textureMs: n
       jsP95: pct(js, 0.95),
       partsMax,
       liveMax,
+      visibleMax,
     })
     console.warn('[bench]', JSON.stringify(report))
     return report

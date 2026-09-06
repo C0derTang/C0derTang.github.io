@@ -12,8 +12,10 @@ export interface Stage {
   resize(size: StageSize): void
   /** Force every cached write to be re-emitted next frame. */
   invalidate(): void
-  /** Visible layers this frame. */
+  /** Visible composited (`live`) planes this frame. */
   liveCount(): number
+  /** Layers visible by projection this frame (includes layers inside a hidden stage). */
+  visibleCount(): number
   /** Visible part viewports this frame (viewBox writes per frame when scrolling). */
   partCount(): number
 }
@@ -53,6 +55,7 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
   const partCache = new Map<string, PartCache>()
   const projections = new Map<string, Projection>()
   let live = 0
+  let visible = 0
   let parts = 0
 
   const cacheFor = (id: string): WriteCache => {
@@ -89,6 +92,7 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
     layers,
     render(state, cam) {
       live = 0
+      visible = 0
       parts = 0
       for (const L of layers) {
         const r = L.range
@@ -103,7 +107,8 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
           L.el.style.visibility = visStr
         }
         if (!vis) continue
-        live++
+        visible++
+        if (L.live) live++
         // The projection is applied as SVG viewBox windows instead of CSS transforms: the raster
         // stays viewport-sized whatever the scale (a scaled composited plane made Chrome rasterize
         // bleed x scale^2 pixels per layer and run out of GPU tile memory), and vectors stay
@@ -179,6 +184,7 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
       lastClip = ''
     },
     liveCount: () => live,
+    visibleCount: () => visible,
     partCount: () => parts,
   }
 }

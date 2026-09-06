@@ -17,6 +17,7 @@ declare global {
       jsP95: number
       partsMax: number
       liveMax: number
+      visibleMax: number
       textureMs: number
     }
   }
