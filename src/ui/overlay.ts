@@ -1,6 +1,6 @@
 import { SLOTS } from '../config/beats'
 import { mustGet, styleWrite } from '../util/dom'
-import type { SceneState } from '../scene/types'
+import type { SceneState } from '../three/state'
 
 export function createOverlay(root: HTMLElement) {
   const slots = SLOTS.map((s) => ({ id: s.id, el: mustGet(`[data-slot="${s.id}"]`, root) }))

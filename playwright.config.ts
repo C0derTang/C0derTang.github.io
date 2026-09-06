@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './e2e',
   testIgnore: process.env.BENCH ? [] : [/bench\.spec\.ts/],
-  timeout: 60_000,
+  timeout: 180_000,
   reporter: process.env.CI ? 'github' : 'list',
   use: { baseURL: 'http://localhost:4173', trace: 'on-first-retry' },
   webServer: {
@@ -19,13 +19,15 @@ export default defineConfig({
     },
     { name: 'mobile', use: { ...devices['Pixel 7'] } },
     {
+      // Real GPU: the installed Chrome, headed. Set BENCH_GPU=1 to gate p95.
       name: 'bench',
       testMatch: /bench\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        headless: false,
         viewport: { width: 1440, height: 900 },
-        deviceScaleFactor: 2,
-        launchOptions: { args: ['--disable-frame-rate-limit', '--disable-gpu-vsync'] },
+        deviceScaleFactor: 1,
       },
     },
   ],

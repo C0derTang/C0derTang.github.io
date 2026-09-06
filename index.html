@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Christopher Tang</title>
     <meta name="description" content="Christopher Tang — a rainy rice farm you scroll through." />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#142a3a" />
     <link rel="canonical" href="https://c0dertang.github.io/" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -26,23 +26,11 @@
   <body>
     <a class="skip-link" href="#overlay">Skip to content</a>
 
-    <!-- Fixed viewport-sized stages. Everything visual lives here; scrolling never moves them. -->
-    <div id="stage-air" class="stage" aria-hidden="true">
-      <div class="sky"></div>
-      <div class="world"></div>
-      <canvas class="fx fx-rain"></canvas>
+    <!-- The scene: one WebGL canvas. Scrolling never moves it; the camera does. -->
+    <canvas id="gl" aria-hidden="true"></canvas>
+    <div id="curtain" aria-hidden="true">
+      <div class="curtain-bar"><i></i></div>
     </div>
-    <div id="stage-water" class="stage" aria-hidden="true">
-      <div class="world"><div class="backdrop"></div></div>
-      <canvas class="fx fx-bubbles"></canvas>
-    </div>
-    <div class="waterline" aria-hidden="true"></div>
-
-    <!-- Fixed color-grade stack -->
-    <div id="glow" aria-hidden="true"></div>
-    <div id="grade" aria-hidden="true"></div>
-    <div id="vignette" aria-hidden="true"></div>
-    <div id="grain" aria-hidden="true"></div>
 
     <!-- Static, crawlable copy. Each slot is shown/hidden by its beat. -->
     <main id="overlay">

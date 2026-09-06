@@ -25,38 +25,8 @@ export function beatAt(t: number): BeatId {
   return current
 }
 
-/** Design canvas every layer is authored on. VP = the point all layers scale about. */
-export const DESIGN = { w: 1600, h: 1200, vp: { x: 800, y: 700 } } as const
-/** Focal length in design px (P in the projection). */
-export const FOCAL = 1000
-
 /** Total scroll length in vh per quality tier. */
 export const SCROLL_LEN_VH = { high: 1000, low: 750 } as const
-
-/** Camera path keys [t, value] in design px; interpolated with a monotone cubic. */
-export const CAM_Z_KEYS = [
-  [0, 0],
-  [0.04, 0],
-  [0.15, 400],
-  [0.3, 1400],
-  [0.5, 1400],
-  [0.58, 2000],
-  [0.68, 3000],
-  [0.76, 3400],
-  [0.78, 3400],
-  [1, 3400],
-] as const
-export const CAM_Y_KEYS = [
-  [0, 0],
-  [0.76, 0],
-  [0.85, 520],
-  [1, 560],
-] as const
-export const CAM_X_KEYS = [
-  [0, -40],
-  [0.3, 0],
-  [1, 0],
-] as const
 
 /** Overlay slot windows: [fadeInStart, fadeInEnd, fadeOutStart, fadeOutEnd] in t. */
 export const SLOTS = [
