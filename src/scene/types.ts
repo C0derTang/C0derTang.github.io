@@ -143,6 +143,8 @@ export interface SceneState {
   air: { visible: boolean }
   water: { visible: boolean; grade: number; rays: number; fishReveal: readonly [number, number] }
   grade: GradeVars
+  /** sky hotspot x in % (moves behind the camera while the room hides the sky) */
+  sunX: number
   slots: Record<SlotId, number>
   hint: number
   reduced: boolean

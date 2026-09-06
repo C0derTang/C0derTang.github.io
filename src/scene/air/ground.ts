@@ -1,10 +1,10 @@
 import { AIR } from '../../config/layers'
-import { ellipse, linGrad, path, polygon, v, wobbly, type P2 } from '../draw'
+import { ellipse, fadeGrad, linGrad, path, polygon, rect, v, wobbly, type P2 } from '../draw'
 import { makeSvgLayer } from '../layer'
 import type { Layer } from '../types'
 import { mulberry32 } from '../../util/math'
 
-/** Foreground meadow in front of the house (restCz 0). */
+/** Foreground meadow in front of the house (restCz 0): wet grass, puddles reflecting the sky and the lit window. */
 export function groundLayer(): Layer {
   const rnd = mulberry32(21)
   const top: P2[] = []
@@ -29,12 +29,19 @@ export function groundLayer(): Layer {
   const inner = `<defs>${linGrad('ex-meadow', [
     [0, v('green-mid')],
     [1, v('green-deep')],
-  ])}</defs>
+  ])}${fadeGrad('ex-grassSheen', v('rim'), 0.12, 0)}${linGrad('ex-puddle', [
+    [0, v('sky-low')],
+    [1, v('sky-mid')],
+  ])}${fadeGrad('ex-puddleWin', v('paper-lit'), 0.4, 0)}</defs>
     ${path(meadow, 'url(#ex-meadow)')}
-    ${ellipse(880, 1040, 260, 44, '#9aa5aa', 'opacity=".75"')}
+    ${rect(-400, 950, 2400, 40, 'url(#ex-grassSheen)')}
+    ${ellipse(880, 1040, 260, 44, 'url(#ex-puddle)', 'opacity=".85"')}
+    ${ellipse(880, 1040, 260, 44, 'none', `stroke="${v('wet')}" stroke-width="6" opacity=".3"`)}
     ${ellipse(880, 1036, 140, 16, '#b7c0c4', 'opacity=".5"')}
-    ${ellipse(1120, 1010, 180, 30, '#9aa5aa', 'opacity=".7"')}
-    ${ellipse(1090, 1006, 60, 12, '#d9a15a', 'opacity=".35"')}
+    ${ellipse(1120, 1010, 180, 30, 'url(#ex-puddle)', 'opacity=".8"')}
+    ${ellipse(1120, 1010, 180, 30, 'none', `stroke="${v('wet')}" stroke-width="5" opacity=".3"`)}
+    ${ellipse(1090, 1006, 26, 40, 'url(#ex-puddleWin)')}
+    ${rect(1070, 996, 30, 3, v('sky-low'))}${rect(1074, 1012, 30, 3, v('sky-low'))}
     ${blades}`
   return makeSvgLayer('ground', AIR.ground, inner)
 }

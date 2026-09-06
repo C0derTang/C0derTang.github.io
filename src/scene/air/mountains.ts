@@ -22,6 +22,7 @@ const fogHook = (
   }
 }
 
+/** Far ridge, drifting clouds with shaded undersides, scud, mist band (live: clouds drift). */
 export function mtnFarLayer(quality: Quality): Layer {
   const ridge = wobbly(
     [
@@ -38,6 +39,9 @@ export function mtnFarLayer(quality: Quality): Layer {
     14,
     31,
   )
+  const cloud = (cx: number, cy: number, rx: number, ry: number) =>
+    ellipse(cx, cy + 28, rx * 0.85, ry * 0.7, '#aab4bb', 'opacity=".22"') +
+    ellipse(cx, cy, rx, ry, 'url(#ex-cloud)')
   const inner = `<defs>${banded('ex-mtnA', '#98a8b1', '#8798a3', 20)}${linGrad('ex-mistA', [
     [0, v('mist'), 0],
     [1, v('mist'), 0.8],
@@ -47,7 +51,7 @@ export function mtnFarLayer(quality: Quality): Layer {
     [1, v('mist'), 0],
   ])}</defs>
     ${path(ridge, 'url(#ex-mtnA)')}
-    <g class="clouds">${ellipse(420, 500, 340, 70, 'url(#ex-cloud)')}${ellipse(1180, 540, 420, 90, 'url(#ex-cloud)')}${ellipse(800, 470, 260, 50, 'url(#ex-cloud)')}</g>
+    <g class="clouds">${cloud(420, 500, 340, 70)}${cloud(1180, 540, 420, 90)}${cloud(800, 470, 260, 50)}${ellipse(800, 440, 600, 14, v('mist'), 'opacity=".3"')}</g>
     ${rect(-500, 640, 2600, 140, 'url(#ex-mistA)')}
     ${fogPath('fog fogc', ridge)}`
   const layer = makeSvgLayer('mtn-far', { ...AIR.mtnFar, live: !quality.reducedMotion }, inner)
@@ -66,6 +70,7 @@ export function mtnFarLayer(quality: Quality): Layer {
   return layer
 }
 
+/** Nearer ridge with two low mist clouds hugging it. */
 export function mtnNearLayer(): Layer {
   const ridge = wobbly(
     [
@@ -86,8 +91,13 @@ export function mtnNearLayer(): Layer {
   const inner = `<defs>${banded('ex-mtnB', '#7a8e94', '#6c7f86', 20)}${linGrad('ex-mistB', [
     [0, v('mist'), 0],
     [1, v('mist'), 0.8],
+  ])}${radGrad('ex-cloud2', [
+    [0, v('mist'), 0.5],
+    [0.6, v('mist'), 0.2],
+    [1, v('mist'), 0],
   ])}</defs>
     ${path(ridge, 'url(#ex-mtnB)')}
+    ${ellipse(300, 600, 340, 70, 'url(#ex-cloud2)')}${ellipse(1300, 640, 420, 90, 'url(#ex-cloud2)')}
     ${rect(-500, 720, 2600, 110, 'url(#ex-mistB)')}
     ${fogPath('fog fogc', ridge)}`
   const layer = makeSvgLayer('mtn-near', AIR.mtnNear, inner)

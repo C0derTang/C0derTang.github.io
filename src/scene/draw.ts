@@ -177,9 +177,22 @@ export function shojiPanel(
     cls?: string
     prefix?: string
     extra?: string
+    /** offset lattice shadow on the paper (lamp side) */
+    shadow?: boolean
+    /** gradient id for a translucency glow drawn over the paper */
+    glow?: string
   } = {},
 ): string {
-  const { lit = false, cols = 3, rows = 6, cls = '', prefix = '', extra = '' } = o
+  const {
+    lit = false,
+    cols = 3,
+    rows = 6,
+    cls = '',
+    prefix = '',
+    extra = '',
+    shadow: lattShadow = false,
+    glow: glowId = '',
+  } = o
   const fr = 8
   const ix = x + fr
   const iy = y + fr
@@ -188,17 +201,28 @@ export function shojiPanel(
   let lattice = ''
   for (let i = 1; i < cols; i++) lattice += `M${f(ix + (iw * i) / cols)} ${f(iy)}v${f(ih)}`
   for (let i = 1; i < rows; i++) lattice += `M${f(ix)} ${f(iy + (ih * i) / rows)}h${f(iw)}`
+  const glowRect = glowId ? ellipse(x + w / 2, y + h / 2, w * 0.5, h * 0.5, `url(#${glowId})`) : ''
+  const shadowPath = lattShadow
+    ? `<path d="${lattice}" stroke="${v('shade-warm')}" stroke-width="3" opacity=".15" fill="none" transform="translate(2 2)"/>`
+    : ''
   return `<g class="shoji ${cls}" ${extra}>${rect(x, y, w, h, v('wood-dark'))}${rect(
     ix,
     iy,
     iw,
     ih,
     `url(#${prefix}${lit ? 'paperLit' : 'paperCool'})`,
-  )}<path d="${lattice}" stroke="${v('wood-dark')}" stroke-width="2" opacity=".9" fill="none"/></g>`
+  )}${glowRect}${shadowPath}<path d="${lattice}" stroke="${v('wood-dark')}" stroke-width="2" opacity=".9" fill="none"/></g>`
 }
 
 /** A rice clump: fanned blades. (x, y) is the base; h the height. */
-export function riceClump(x: number, y: number, h: number, seed: number, blades = 5): string {
+export function riceClump(
+  x: number,
+  y: number,
+  h: number,
+  seed: number,
+  blades = 5,
+  litEdge = false,
+): string {
   const rnd = mulberry32(seed)
   let out = ''
   for (let i = 0; i < blades; i++) {
@@ -227,6 +251,130 @@ export function riceClump(x: number, y: number, h: number, seed: number, blades 
       ],
       i === 0 || i === blades - 1 ? v('green-mid') : v('green-light'),
     )
+    if (litEdge && i < 2)
+      out += `<path d="M${f(x - base)} ${f(y)}L${f(tipX - base * 0.5)} ${f(tipY)}" stroke="${v('green-crest')}" stroke-width="1.5" opacity=".5" fill="none"/>`
   }
   return out
 }
+
+/* ---------- shading helpers (realism pass) ---------- */
+
+/**
+ * Cylinder shading across x: edge | mid | light | mid | dark | edge. `hi` is the highlight
+ * position (.3 = key light upper-left outdoors, .62 = lamp on the right indoors).
+ */
+export const cyl = (
+  id: string,
+  dark: string,
+  mid: string,
+  light: string,
+  hi = 0.3,
+  edge = dark,
+): string =>
+  linGrad(
+    id,
+    [
+      [0, edge],
+      [Math.max(0, hi - 0.22), mid],
+      [hi, light],
+      [Math.min(1, hi + 0.2), mid],
+      [Math.min(1, hi + 0.45), dark],
+      [1, edge],
+    ],
+    0,
+    0,
+    1,
+    0,
+  )
+
+/** Three-band shaded gradient (light / base / dark), vertical by default. */
+export const shade3 = (id: string, light: string, base: string, dark: string, angle = 0): string =>
+  `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1" gradientTransform="rotate(${angle} .5 .5)">${stops(
+    [
+      [0, light],
+      [0.45, base],
+      [1, dark],
+    ],
+  )}</linearGradient>`
+
+/** Soft contact / ambient-occlusion blob gradient (one radial fill, no filters). */
+export const aoGrad = (id: string, color: string, peak = 0.55): string =>
+  radGrad(id, [
+    [0, color, peak],
+    [0.55, color, peak * 0.4],
+    [1, color, 0],
+  ])
+
+export const shadow = (
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  gradId: string,
+  o = 1,
+): string => ellipse(cx, cy, rx, ry, `url(#${gradId})`, o === 1 ? '' : `opacity="${f(o)}"`)
+
+/**
+ * Soft shadow without gradients: three concentric ellipses with per-primitive fill-opacity
+ * (never a <g opacity>, which would force a saveLayer). Centre alpha ~= `alpha`.
+ */
+export function softShadow(
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  alpha = 0.3,
+  color = '#0b0f12',
+): string {
+  const rings: readonly (readonly [number, number])[] = [
+    [1, 0.28],
+    [0.7, 0.36],
+    [0.42, 0.5],
+  ]
+  return rings
+    .map(([m, share]) =>
+      ellipse(cx, cy, rx * m, ry * m, color, `fill-opacity="${f(alpha * share)}"`),
+    )
+    .join('')
+}
+
+/** Directional cast shadow: three copies of the polygon stepped along (dx, dy) = penumbra. */
+export function castShadow(
+  pts: readonly P2[],
+  dx: number,
+  dy: number,
+  alpha = 0.25,
+  color = '#0b0f12',
+): string {
+  const steps: readonly (readonly [number, number])[] = [
+    [0, 0.55],
+    [0.5, 0.3],
+    [1, 0.15],
+  ]
+  return steps
+    .map(([k, share]) =>
+      polygon(
+        pts,
+        color,
+        `fill-opacity="${f(alpha * share)}" transform="translate(${f(dx * k)} ${f(dy * k)})"`,
+      ),
+    )
+    .join('')
+}
+
+/** Repeating fold gradient for cloth (noren, coat): n folds across the bounding box. */
+export const folds = (id: string, base: string, lit: string, dark: string, n = 5): string =>
+  `<linearGradient id="${id}" x1="0" y1="0" x2="${f(1 / n)}" y2="0" spreadMethod="repeat">${stops([
+    [0, base],
+    [0.35, lit],
+    [0.5, base],
+    [0.8, dark],
+    [1, base],
+  ])}</linearGradient>`
+
+/** Vertical fade rect: from color/alpha a at the top to b at the bottom. */
+export const fadeGrad = (id: string, color: string, a: number, b: number): string =>
+  linGrad(id, [
+    [0, color, a],
+    [1, color, b],
+  ])

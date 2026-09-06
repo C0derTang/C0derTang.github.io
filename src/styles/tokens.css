@@ -92,3 +92,36 @@
   --font-display: 'Shippori Mincho', Georgia, 'Times New Roman', serif;
   --font-body: 'Zen Kaku Gothic New', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
+
+/* light model (realism pass) */
+:root {
+  --shade-cool: #3b4652;
+  --shade-warm: #3a2a22;
+  --ao-cool: #141a20;
+  --ao-warm: #201610;
+  --rim: #dfe6ea;
+  --rim-warm: #f7e6c0;
+  --rim-uw: #cfe8dd;
+  --bounce-warm: #a08a6a;
+  --wet: #0e1214;
+  --water-sheen: #d8dee0;
+  --plaster-lit: #cfc4ab;
+  --plaster-shadow: #8f8570;
+  --wood-lit: #7f5c44;
+  --bark-dark: #2c1f18;
+  --bark-light: #5c4536;
+  --green-shadow: #22362e;
+  --green-crest: #93a86a;
+  --thatch-ridge: #a8967a;
+  --stone: #6e7370;
+  --stone-light: #8a8f8c;
+  --stone-dark: #4f5451;
+  --mud-dark: #33291f;
+  --tatami-lit: #c4bb7c;
+  --koi-white-lit: #fbf7ee;
+  --koi-white-shade: #b9b0a0;
+  --koi-orange-lit: #f0a066;
+  --funa-back: #5d6a52;
+  --uw-caustic: #d9f0e6;
+  --uw-silt: #c8d6c9;
+}

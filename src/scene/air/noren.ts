@@ -1,14 +1,14 @@
 import { animate } from 'animejs'
 import { AIR } from '../../config/layers'
 import type { Quality } from '../../config/quality'
-import { circle, f, path, pivot, rect, v } from '../draw'
+import { circle, f, folds, path, pivot, rect, v } from '../draw'
 import { DOORWAY } from '../geometry'
 import { makeSvgLayer } from '../layer'
 import type { Layer } from '../types'
 import { attrWrite } from '../../util/dom'
 import { smoothstep } from '../../util/math'
 
-/** Split indigo curtain in the doorway lintel; sways on a time-based anime loop. */
+/** Split indigo curtain in the doorway lintel: cloth folds, a wet hem, a time-based sway. */
 export function norenLayer(quality: Quality): Layer {
   const top = DOORWAY.y
   const h = 118
@@ -19,9 +19,10 @@ export function norenLayer(quality: Quality): Layer {
       px,
       top,
       cls,
-      rect(x, top, w, h, v('indigo-cloth')) +
+      rect(x, top, w, h, 'url(#ex-cloth)') +
         rect(x, top, w, 10, '#2f3852') +
-        path(`M${x} ${top + h}q${w / 4} 8 ${w / 2} 0t${w / 2} 0`, v('indigo-cloth')) +
+        rect(x, top + h - 12, w, 12, '#2a3149', 'opacity=".6"') +
+        path(`M${x} ${top + h}q${w / 4} 8 ${w / 2} 0t${w / 2} 0`, '#2a3149') +
         circle(
           px,
           top + 62,
@@ -31,6 +32,7 @@ export function norenLayer(quality: Quality): Layer {
         ),
     )
   const inner =
+    `<defs>${folds('ex-cloth', v('indigo-cloth'), '#4a5678', '#2f3852', 5)}</defs>` +
     rect(DOORWAY.x - 6, top - 6, DOORWAY.w + 12, 10, v('wood-dark')) +
     `<g class="part-l">${panel(DOORWAY.x + 4, 'noren-l', DOORWAY.x + 4 + w / 2)}</g>` +
     `<g class="part-r">${panel(
@@ -39,7 +41,6 @@ export function norenLayer(quality: Quality): Layer {
       DOORWAY.x + DOORWAY.w / 2 + gap / 2 + w / 2,
     )}</g>`
   const layer = makeSvgLayer('noren', { ...AIR.noren, live: !quality.reducedMotion }, inner)
-  // The curtain parts as the camera approaches it (pure in zr), then dissolves.
   const partL = layer.el.querySelector('.part-l')
   const partR = layer.el.querySelector('.part-r')
   layer.update = (_state, p) => {

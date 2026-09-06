@@ -1,15 +1,29 @@
 import { animate } from 'animejs'
 import { AIR } from '../../config/layers'
 import type { Quality } from '../../config/quality'
-import { circle, ellipse, linGrad, path, polygon, radGrad, rect, v, type P2 } from '../draw'
+import {
+  aoGrad,
+  circle,
+  cyl,
+  ellipse,
+  fadeGrad,
+  linGrad,
+  path,
+  polygon,
+  radGrad,
+  rect,
+  shadow,
+  v,
+  type P2,
+} from '../draw'
 import { LAMP } from '../geometry'
 import { makeSvgLayer } from '../layer'
 import type { Layer } from '../types'
 
-/** Near ring of the room: posts, big beam, roof void, doma (authored for restCz 1000). */
+/** Near ring of the room: posts, big beam, roof void, doma. Lit from the lamp on the right. */
 export function interiorFrameLayer(): Layer {
   const post = (x: number) =>
-    rect(x, -220, 64, 1640, v('wood-dark')) + rect(x, -220, 8, 1640, v('wood-mid'))
+    rect(x, -220, 64, 1640, 'url(#in-post)') + rect(x, -220, 6, 1640, v('wood-mid'), 'opacity=".5"')
   const rafters = [500, 800, 1100]
     .map((x) =>
       polygon(
@@ -23,19 +37,32 @@ export function interiorFrameLayer(): Layer {
       ),
     )
     .join('')
-  const inner = `
-    ${rect(-280, -220, 2160, 370, '#1e1512')}
+  const inner = `<defs>${linGrad('in-void', [
+    [0, '#0d0906'],
+    [1, '#1e1512'],
+  ])}${radGrad('in-beamGlow', [
+    [0, v('lamp-glow'), 0.2],
+    [1, v('lamp-glow'), 0],
+  ])}${cyl('in-post', v('wood-dark'), v('wood-mid'), v('wood-lit'), 0.62)}${linGrad('in-doma', [
+    [0, '#6a5d50'],
+    [1, '#4a3f36'],
+  ])}</defs>
+    ${rect(-280, -220, 2160, 370, 'url(#in-void)')}
     ${rafters}
     ${path('M-280 150H1880V262Q800 296 -280 262Z', v('wood-dark'))}
     ${rect(-280, 150, 2160, 20, v('wood-mid'))}
     <path d="M-280 200H1880M-280 228H1880M-280 250Q800 262 1880 250" stroke="${v('wood-mid')}" stroke-width="1.5" opacity=".2" fill="none"/>
+    ${ellipse(1080, 200, 380, 120, 'url(#in-beamGlow)')}
     ${post(40)}${post(1496)}
     ${rect(-280, 1040, 2160, 20, v('wood-light'))}
-    ${rect(-280, 1060, 2160, 400, '#5a4d42')}`
+    ${rect(-280, 1060, 2160, 400, 'url(#in-doma)')}`
   return makeSvgLayer('interior-frame', AIR.interiorFrame, inner)
 }
 
-/** Tatami, irori hearth, kettle, lamp and its glow (authored for restCz 1000, floor line y 800). */
+/**
+ * Tatami (each mat shaded toward its far edge, warm/cool split from the lamp), irori hearth,
+ * kettle, cushion, shelf, the lamp and its glow, object shadows falling away from the lamp.
+ */
 export function interiorRoomLayer(quality: Quality): Layer {
   const far: [number, number] = [330, 1270]
   const near: [number, number] = [100, 1500]
@@ -61,7 +88,7 @@ export function interiorRoomLayer(quality: Quality): Layer {
         [xAt(y1, (c + 1) / 3), y1],
         [xAt(y1, c / 3), y1],
       ]
-      const fill = (c + ri) % 2 ? '#ada468' : v('tatami')
+      const fill = (c + ri) % 2 ? 'url(#in-matB)' : 'url(#in-matA)'
       mats += polygon(pts, fill)
       let weave = ''
       for (let k = 1; k < 6; k++) {
@@ -74,8 +101,20 @@ export function interiorRoomLayer(quality: Quality): Layer {
         'none',
         `stroke="${v('tatami-border')}" stroke-width="6" opacity=".85" stroke-linejoin="round"`,
       )
+      // lit rim inside the top/left, AO inside the bottom/right
+      const [a, b, cc, d] = pts
+      if (a && b && cc && d) {
+        mats += `<path d="M${d[0] + 3} ${d[1] - 3}L${a[0] + 3} ${a[1] + 3}L${b[0] - 3} ${b[1] + 3}" stroke="${v('tatami-lit')}" stroke-width="1" opacity=".6" fill="none"/>`
+        mats += `<path d="M${b[0] - 4} ${b[1] + 4}L${cc[0] - 4} ${cc[1] - 4}L${d[0] + 4} ${d[1] - 4}" stroke="${v('ao-warm')}" stroke-width="2" opacity=".3" fill="none"/>`
+      }
     }
   })
+  const floorPoly: P2[] = [
+    [far[0], yFar],
+    [far[1], yFar],
+    [near[1], yNear],
+    [near[0], yNear],
+  ]
 
   const lampX = LAMP.x
   const lampY = LAMP.y
@@ -84,6 +123,26 @@ export function interiorRoomLayer(quality: Quality): Layer {
       [0, v('paper-lit')],
       [1, '#efcf98'],
     ])}
+    ${linGrad('in-matA', [
+      [0, v('tatami-shadow')],
+      [1, v('tatami-lit')],
+    ])}
+    ${linGrad('in-matB', [
+      [0, '#8f8757'],
+      [1, '#b8ae70'],
+    ])}
+    ${linGrad(
+      'in-split',
+      [
+        [0, v('paper-cool'), 0.12],
+        [0.45, v('paper-cool'), 0],
+        [1, v('lamp-glow'), 0.18],
+      ],
+      0,
+      0,
+      1,
+      0,
+    )}
     ${radGrad('in-floorGlow', [
       [0, v('lamp-glow'), 0.3],
       [1, v('lamp-glow'), 0],
@@ -101,11 +160,35 @@ export function interiorRoomLayer(quality: Quality): Layer {
       [0, '#fff3d6', 0.9],
       [1, v('lamp'), 0],
     ])}
+    ${aoGrad('in-ao', v('ao-warm'), 0.5)}
+    ${linGrad('in-pit', [
+      [0, '#2a2622'],
+      [1, '#6a655a'],
+    ])}
+    ${fadeGrad('in-shelfAO', v('ao-warm'), 0.35, 0)}
+    ${cyl('in-kettle', '#141414', '#2a2a2a', '#4a4a4a', 0.68)}
+    ${linGrad(
+      'in-lampBody',
+      [
+        [0, '#d9b88a'],
+        [0.3, v('paper-lit')],
+        [0.5, '#fff3d6'],
+        [0.7, v('paper-lit')],
+        [1, '#d9b88a'],
+      ],
+      0,
+      0,
+      1,
+      0,
+    )}
   </defs>
     ${rect(-280, 180, 2160, 50, v('wood-dark'))}
     ${rect(-280, 180, 2160, 8, v('wood-mid'))}
     ${mats}
+    ${polygon(floorPoly, 'url(#in-split)')}
     ${circle(1080, 1000, 420, 'url(#in-floorGlow)')}
+    ${shadow(520, 1010, 90, 22, 'in-ao', 0.6)}${ellipse(520, 1010, 130, 30, v('ao-warm'), 'fill-opacity=".12"')}
+    ${shadow(1075, 1004, 90, 14, 'in-ao', 0.7)}
     <g transform="translate(-230 0)">
     ${polygon(
       [
@@ -123,13 +206,14 @@ export function interiorRoomLayer(quality: Quality): Layer {
         [912, 984],
         [688, 984],
       ],
-      '#8c877c',
+      'url(#in-pit)',
     )}
     ${circle(800, 955, 90, 'url(#in-ember)')}
     ${ellipse(800, 958, 40, 16, v('ember'))}${ellipse(778, 952, 14, 8, v('lamp'))}
     <path d="M800 230V840" stroke="#2a2a2a" stroke-width="3"/>
-    ${path('M760 640c20-14 60-14 80 0-20 12-60 12-80 0zM840 640l22-10v20z', v('wood-mid'))}
-    ${rect(735, 780, 130, 90, '#262626', 'rx="30"')}
+    ${path('M770 470c16-12 44-12 60 0-16 10-44 10-60 0zM830 470l18-9v18z', v('wood-mid'))}
+    ${rect(735, 780, 130, 90, 'url(#in-kettle)', 'rx="30"')}
+    <path d="M862 792c4 20 4 46 0 66" stroke="${v('rim-warm')}" stroke-width="2" opacity=".35" fill="none"/>
     ${ellipse(800, 782, 60, 12, '#1a1a1a')}
     ${path('M865 810c30 0 40 10 40 30', 'none', `stroke="#262626" stroke-width="10" stroke-linecap="round"`)}
     ${path('M745 780c10-40 100-40 110 0', 'none', `stroke="#262626" stroke-width="6"`)}
@@ -137,11 +221,12 @@ export function interiorRoomLayer(quality: Quality): Layer {
     </g>
     ${rect(1000, 950, 150, 50, v('indigo-cloth'), 'rx="8"')}
     ${rect(1000, 950, 150, 50, 'none', `rx="8" stroke="#55628a" stroke-width="2"`)}
+    ${rect(200, 632, 170, 8, 'url(#in-shelfAO)')}
     ${rect(200, 620, 170, 12, v('wood-mid'))}
     ${rect(220, 580, 40, 40, '#6b6f66', 'rx="6"')}${rect(275, 588, 36, 32, '#8c7a5a', 'rx="6"')}
     ${circle(lampX, lampY, 460, 'url(#in-lampGlow)')}
     <path d="M${lampX} 230V${lampY - 60}" stroke="#2a2a2a" stroke-width="2"/>
-    ${rect(lampX - 40, lampY - 60, 80, 120, 'url(#in-paperLit)', 'rx="18"')}
+    ${rect(lampX - 40, lampY - 60, 80, 120, 'url(#in-lampBody)', 'rx="18"')}
     <path d="M${lampX - 14} ${lampY - 56}v112M${lampX} ${lampY - 56}v112M${lampX + 14} ${lampY - 56}v112" stroke="${v('wood-dark')}" stroke-width="2" opacity=".6"/>
     <g class="lamp-core">${circle(lampX, lampY, 40, 'url(#in-lampCore)')}</g>
     ${rect(lampX - 44, lampY - 66, 88, 10, v('wood-dark'), 'rx="4"')}`

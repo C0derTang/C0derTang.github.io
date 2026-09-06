@@ -137,6 +137,7 @@ export function computeState(
       fishReveal: [smoothstep(0.0, 0.3, uw), smoothstep(0.15, 0.5, uw)],
     },
     grade,
+    sunX: lerp(28, 72, smoothstep(0.3, 0.5, t)),
     slots,
     hint: 1 - smoothstep(0.03, 0.05, t),
     reduced: quality.reducedMotion,

@@ -1,14 +1,15 @@
 import { createTimeline } from 'animejs'
 import { AIR } from '../../config/layers'
-import { circle, linGrad, rect, shojiPanel, v, path, wobbly } from '../draw'
+import { circle, fadeGrad, linGrad, path, radGrad, rect, shojiPanel, v, wobbly } from '../draw'
 import { SHOJI } from '../geometry'
 import { makeSvgLayer } from '../layer'
 import type { Layer } from '../types'
 import { attrWrite } from '../../util/dom'
 
 /**
- * Back wall with four shoji panels. Nothing is painted behind the inner two panels: sliding
- * them open reveals the paddy layers behind. The slide is an anime timeline seeked by scroll.
+ * Back wall with four shoji panels. Nothing is painted behind the inner two: sliding them open
+ * reveals the paddy layers behind. Lit by the lamp on the right (warm falloff) and cool daylight
+ * through the side window on the left. The slide is an anime timeline seeked by scroll.
  */
 export function shojiLayer(): Layer {
   const S = SHOJI
@@ -19,6 +20,8 @@ export function shojiLayer(): Layer {
       prefix: 'in-',
       cls: `shoji-panel p${i}`,
       extra: `data-i="${i}"`,
+      shadow: i >= 2,
+      glow: i >= 2 ? 'in-paperWarm' : 'in-paperTrans',
     }),
   )
   const win = S.sideWindow
@@ -31,11 +34,34 @@ export function shojiLayer(): Layer {
       [0, v('paper-lit')],
       [1, '#efcf98'],
     ])}
+    ${radGrad('in-wallGlow', [
+      [0, v('lamp-glow'), 0.22],
+      [0.5, v('lamp-glow'), 0.08],
+      [1, v('lamp-glow'), 0],
+    ])}
+    ${radGrad('in-windowSpill', [
+      [0, v('rim'), 0.14],
+      [1, v('rim'), 0],
+    ])}
+    ${radGrad('in-paperTrans', [
+      [0, '#eeeae0', 0.25],
+      [1, '#eeeae0', 0],
+    ])}
+    ${radGrad('in-paperWarm', [
+      [0, '#f3e2c0', 0.3],
+      [1, '#f3e2c0', 0],
+    ])}
+    ${fadeGrad('in-ceilAO', v('ao-warm'), 0.45, 0)}
+    ${fadeGrad('in-floorAO', v('ao-warm'), 0, 0.35)}
   </defs>
     <!-- wall pieces around the opening (the opening itself is unpainted) -->
     ${rect(-300, -300, 2200, S.y + 300, v('plaster-int'))}
     ${rect(-300, S.y, S.x0 + 300, S.panelH, v('plaster-int'))}
     ${rect(S.x0 + 4 * S.panelW, S.y, 800, S.panelH, v('plaster-int'))}
+    ${rect(-300, 100, 2200, 300, 'url(#in-ceilAO)')}
+    ${circle(1080, 500, 560, 'url(#in-wallGlow)')}
+    ${circle(250, 480, 320, 'url(#in-windowSpill)')}
+    ${rect(-300, S.floorY - 30, 2200, 30, 'url(#in-floorAO)')}
     ${rect(-300, S.floorY, 2200, 12, v('wood-dark'))}
     ${rect(-300, S.floorY + 12, 2200, 200, v('wood-dark'))}
     <path d="M-300 ${S.floorY + 40}H1900M-300 ${S.floorY + 70}H1900" stroke="${v('wood-mid')}" stroke-width="1.5" opacity=".25"/>

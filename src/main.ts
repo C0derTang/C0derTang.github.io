@@ -98,6 +98,7 @@ director.onFrame((f) => {
   water.render(state, state.waterCam)
 
   styleWrite(stageAir, 'visibility', state.air.visible ? 'visible' : 'hidden')
+  styleWrite(stageAir, '--sun-x', `${state.sunX.toFixed(1)}%`)
   styleWrite(stageWater, 'visibility', state.water.visible ? 'visible' : 'hidden')
   styleWrite(
     waterline,
