@@ -1,6 +1,7 @@
 import './styles/index.css'
 import 'lenis/dist/lenis.css'
 import Lenis from 'lenis'
+import { engine } from 'animejs'
 import { DESIGN, SCROLL_LEN_VH } from './config/beats'
 import { detectQuality } from './config/quality'
 import { createFx } from './fx'
@@ -31,6 +32,9 @@ declare global {
 }
 
 history.scrollRestoration = 'manual'
+// The director ticks anime.js; this must be off before the first animate() call (layer build),
+// otherwise anime starts its own rAF loop and ambient loops run outside the director.
+engine.useDefaultMainLoop = false
 
 const params = new URLSearchParams(location.search)
 const quality = detectQuality(params)
@@ -150,7 +154,12 @@ if (preview) {
       L.fade = undefined
       L.restCz = 0
       L.depth = 0
-      const svgEl = L.el.querySelector('svg')
+      for (const part of L.parts) {
+        part.depth = 0
+        part.restCz = 0
+        part.range = undefined
+      }
+      const svgEl = L.el.querySelector('svg[data-part]')
       svgEl?.insertAdjacentHTML(
         'beforeend',
         '<rect x="0" y="0" width="1600" height="1200" fill="none" stroke="#f0f" stroke-width="4"/>',

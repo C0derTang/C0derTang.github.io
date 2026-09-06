@@ -13,7 +13,7 @@ export interface Stage {
   invalidate(): void
   /** Visible layers this frame. */
   liveCount(): number
-  /** viewBox windows written this frame (== visible layers until parts land). */
+  /** Visible part viewports this frame (viewBox writes per frame when scrolling). */
   partCount(): number
 }
 
@@ -21,6 +21,10 @@ interface WriteCache {
   vis: string
   vb: string
   op: string
+}
+interface PartCache {
+  vis: string
+  vb: string
 }
 
 export function createStage(world: HTMLElement, layers: Layer[], size: StageSize): Stage {
@@ -44,8 +48,10 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
   let lastClip = ''
 
   const cache = new Map<string, WriteCache>()
+  const partCache = new Map<string, PartCache>()
   const projections = new Map<string, Projection>()
   let live = 0
+  let parts = 0
 
   const cacheFor = (id: string): WriteCache => {
     let c = cache.get(id)
@@ -55,16 +61,27 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
     }
     return c
   }
-  const svgOf = new Map<string, SVGSVGElement>()
-  for (const L of layers) {
-    const svg = L.el.querySelector('svg')
-    if (svg) svgOf.set(L.id, svg)
+  const partCacheFor = (key: string): PartCache => {
+    let c = partCache.get(key)
+    if (!c) {
+      c = { vis: '', vb: '' }
+      partCache.set(key, c)
+    }
+    return c
+  }
+  /** The visible design-space window for a projection: screen = vx + (stage - vx) * s + tx. */
+  const windowOf = (p: Projection): string => {
+    const k = 1 / (p.s * size.unit)
+    const x0 = ((-p.tx - size.vx) / p.s + size.vx - size.ox) / size.unit
+    const y0 = ((-p.ty - size.vy) / p.s + size.vy - size.oy) / size.unit
+    return `${x0.toFixed(2)} ${y0.toFixed(2)} ${(size.w * k).toFixed(2)} ${(size.h * k).toFixed(2)}`
   }
 
   return {
     layers,
     render(state, cam) {
       live = 0
+      parts = 0
       for (const L of layers) {
         const r = L.range
         const inRange = !r || (state.t >= r[0] && state.t <= r[1])
@@ -79,17 +96,33 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
         }
         if (!vis) continue
         live++
-        // The projection is applied as an SVG viewBox window instead of a CSS transform: the
-        // raster stays viewport-sized whatever the scale (a scaled composited plane made Chrome
-        // rasterize bleed x scale^2 pixels per layer and run out of GPU tile memory), and the
-        // vectors stay crisp. Screen = vx + (stage - vx) * s + tx, inverted for the stage box.
-        const k = 1 / (p.s * size.unit)
-        const x0 = ((-p.tx - size.vx) / p.s + size.vx - size.ox) / size.unit
-        const y0 = ((-p.ty - size.vy) / p.s + size.vy - size.oy) / size.unit
-        const vb = `${x0.toFixed(2)} ${y0.toFixed(2)} ${(size.w * k).toFixed(2)} ${(size.h * k).toFixed(2)}`
-        if (c.vb !== vb) {
-          c.vb = vb
-          svgOf.get(L.id)?.setAttribute('viewBox', vb)
+        // The projection is applied as SVG viewBox windows instead of CSS transforms: the raster
+        // stays viewport-sized whatever the scale (a scaled composited plane made Chrome rasterize
+        // bleed x scale^2 pixels per layer and run out of GPU tile memory), and vectors stay
+        // crisp. Each part is a nested viewport at its own depth (micro-parallax in one paint).
+        for (const part of L.parts) {
+          const pr = part.range
+          const partIn = !pr || (state.t >= pr[0] && state.t <= pr[1])
+          const same = part.depth === L.depth && part.restCz === L.restCz
+          const pp = !partIn ? HIDDEN : same ? p : project(part, cam, size.unit)
+          const key = `${L.id}/${part.id}`
+          projections.set(key, pp)
+          const pc = partCacheFor(key)
+          // Never write visibility="visible": a descendant's explicit visible overrides the
+          // layer's hidden state. Parts only ever set hidden or inherit.
+          const pvis = partIn && !pp.hidden ? 'inherit' : 'hidden'
+          if (pc.vis !== pvis) {
+            pc.vis = pvis
+            if (pvis === 'hidden') part.svg.setAttribute('visibility', 'hidden')
+            else part.svg.removeAttribute('visibility')
+          }
+          if (pvis === 'hidden') continue
+          parts++
+          const vb = windowOf(pp)
+          if (pc.vb !== vb) {
+            pc.vb = vb
+            part.svg.setAttribute('viewBox', vb)
+          }
         }
         const op = p.opacity.toFixed(3)
         if (c.op !== op) {
@@ -118,13 +151,15 @@ export function createStage(world: HTMLElement, layers: Layer[], size: StageSize
     resize(s) {
       for (const L of layers) L.resize?.(s)
       cache.clear()
+      partCache.clear()
       lastClip = ''
     },
     invalidate() {
       cache.clear()
+      partCache.clear()
       lastClip = ''
     },
     liveCount: () => live,
-    partCount: () => live,
+    partCount: () => parts,
   }
 }

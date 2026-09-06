@@ -42,11 +42,30 @@ export interface Pt {
   y: number
 }
 
+/** A sub-viewport of a layer at its own depth (micro-parallax inside one paint). */
+export interface PartOpts {
+  depth: number
+  restCz?: number
+  range?: readonly [number, number]
+}
+
+export interface Part {
+  id: string
+  svg: SVGSVGElement
+  depth: number
+  restCz: number
+  range?: readonly [number, number]
+}
+
 export interface LayerOpts {
   depth: number
   restCz?: number
   fade?: readonly [number, number]
   range?: readonly [number, number]
+  /** Part placements by part id; parts not listed inherit the layer's depth. */
+  parts?: Readonly<Record<string, PartOpts>>
+  /** false merges every part into one viewport (low tier). */
+  microParallax?: boolean
   /** Has time-based animation inside: gets its own composited layer so idle repaints stay local. */
   live?: boolean
   /** Member of the clip group that is masked to the doorway while the front wall is visible. */
@@ -62,6 +81,8 @@ export interface Layer {
   range?: readonly [number, number]
   live: boolean
   portal: boolean
+  /** Nested viewports, in paint order. A plain layer has one part, `main`. */
+  parts: readonly Part[]
   /** Called once after the element is in the document (geometry APIs work from here). */
   mount?(): void
   /** Per-frame hook, only called while the layer is visible. Writes only. */

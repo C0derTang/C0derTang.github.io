@@ -10,6 +10,8 @@ declare global {
       p95: number
       p99: number
       max: number
+      dropped: number
+      stalls: number
       longTasks: number
       jsP95: number
       partsMax: number

@@ -13,7 +13,10 @@ export interface BenchReport {
   p95: number
   p99: number
   max: number
+  /** frames over 25 ms (a missed 60 Hz frame with margin) */
   dropped: number
+  /** frames over 50 ms */
+  stalls: number
   longTasks: number
   jsP50: number
   jsP95: number
@@ -49,6 +52,7 @@ export function createBench(lenis: Lenis, air: Stage, water: Stage, textureMs: n
     p99: 0,
     max: 0,
     dropped: 0,
+    stalls: 0,
     longTasks: 0,
     jsP50: 0,
     jsP95: 0,
@@ -97,7 +101,6 @@ export function createBench(lenis: Lenis, air: Stage, water: Stage, textureMs: n
     await sweep(lenis.limit, seconds)
     await sweep(0, seconds)
     recording = false
-    const refresh = pct(intervals, 0.5)
     Object.assign(report, {
       done: true,
       frames: intervals.length,
@@ -105,7 +108,8 @@ export function createBench(lenis: Lenis, air: Stage, water: Stage, textureMs: n
       p95: pct(intervals, 0.95),
       p99: pct(intervals, 0.99),
       max: intervals.length ? Math.max(...intervals) : 0,
-      dropped: intervals.filter((x) => x > refresh * 1.5 + 2).length,
+      dropped: intervals.filter((x) => x > 25).length,
+      stalls: intervals.filter((x) => x > 50).length,
       longTasks,
       jsP50: pct(js, 0.5),
       jsP95: pct(js, 0.95),

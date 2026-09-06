@@ -44,7 +44,9 @@ export function createDirector(lenis: Lenis): Director {
     lastT = t
     const info: FrameInfo = { t, time: frozen ?? now, dt, velocity: lenis.velocity, changed }
     for (const cb of cbs) cb(info)
-    engine.update()
+    // anime's manual update ticks from wall-clock time regardless of engine.pause(), so a
+    // frozen frame simply skips it (ambient loops resume from real time afterwards).
+    if (frozen === null) engine.update()
   }
 
   const start = () => {
@@ -74,7 +76,9 @@ export function createDirector(lenis: Lenis): Director {
       tick(performance.now())
     },
     freeze(on) {
+      // Deterministic frame: fixed time for fx, no anime ticks, CSS animations paused.
       frozen = on ? performance.now() : null
+      document.documentElement.classList.toggle('frozen', on)
     },
     get t() {
       return t

@@ -58,3 +58,10 @@ html:not(.js) .slot {
   position: static;
   transform: none;
 }
+
+/* ?freeze / director.freeze(true): deterministic frames for screenshots */
+html.frozen *,
+html.frozen *::before,
+html.frozen *::after {
+  animation-play-state: paused !important;
+}
