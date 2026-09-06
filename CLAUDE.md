@@ -78,10 +78,13 @@ split an object from the plane it stands on (rice rows stay on the water); dupli
 band in both parts where a split is wanted (porch band in walls and posts). The low tier merges
 parts into one viewport (`quality.microParallax`).
 
-The camera adds a pure-in-`t` handheld sway and a lens-breathing pulse (`cam.p`) at the two
-pass-throughs; `zr` and the near clip keep the constant P so fade windows never move. Never put
-time-based motion on `cam` (it would defeat the viewBox write cache and repaint every layer while
-idle); the only time-based camera motion is the compositor-only bob on the water world.
+The camera adds a pure-in-`t` lens-breathing pulse (`cam.p`) at the two pass-throughs; `zr` and
+the near clip keep the constant P so fade windows never move. No sway or nod written in `t`: an
+oscillation in `t` is a scroll-speed-dependent shake (it was tried at 29 cycles per page and
+read as ~6 Hz on a trackpad flick), and its screen amplitude grows with 1/distance, so the planes
+nearest the camera before the dive shook hardest. Never put time-based motion on `cam` either (it
+would defeat the viewBox write cache and repaint every layer while idle); the only time-based
+camera motion is the compositor-only bob on the water world.
 
 ## Conventions
 

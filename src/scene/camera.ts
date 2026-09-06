@@ -45,19 +45,17 @@ const cxOf = monotoneCubic(CAM_X_KEYS)
 const bump = (t: number, c: number, w: number): number => Math.max(0, 1 - Math.abs(t - c) / w) ** 2
 
 /**
- * Camera path plus, unless `still`, a handheld sway (pure in t: ±6 / ±4 design px, ~11 screen px on
- * the house plane and under 1 px on the mountains) and a lens-breathing pulse at the two
- * pass-throughs. Nothing here depends on wall-clock time, so frames stay reproducible.
+ * Camera path plus, unless `still`, a lens-breathing pulse at the two pass-throughs (pure in t,
+ * under 1% of scale). No handheld sway: any oscillation written in t turns into a
+ * scroll-speed-dependent shake (29 cycles per page read as ~6 Hz on a trackpad flick), and its
+ * screen amplitude grows with 1/distance, so the planes nearest the camera before the dive
+ * (engawa, near rice) shook +-12 px while the horizon stood still. Nothing here depends on
+ * wall-clock time, so frames stay reproducible.
  */
 export const camera = (t: number, still = false): Cam => {
   const base = { cz: czOf(t), cx: cxOf(t), cy: cyOf(t) }
   if (still) return base
-  return {
-    cz: base.cz,
-    cx: base.cx + 6 * Math.sin(t * Math.PI * 58 + 0.7),
-    cy: base.cy + 4 * Math.sin(t * Math.PI * 34 + 1.3),
-    p: P - 50 * (bump(t, 0.375, 0.035) + bump(t, 0.605, 0.03)),
-  }
+  return { ...base, p: P - 50 * (bump(t, 0.375, 0.035) + bump(t, 0.605, 0.03)) }
 }
 
 /** Design px -> stage px (before the layer transform). */
