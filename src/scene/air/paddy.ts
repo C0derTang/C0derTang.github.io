@@ -11,6 +11,7 @@ import {
   linGrad,
   path,
   polygon,
+  radGrad,
   rect,
   riceClump,
   shadow,
@@ -54,7 +55,10 @@ export function paddyFarLayer(): Layer {
     '#4a5678',
     '#2f3852',
     3,
-  )}${aoGrad('pd-ao', v('ao-cool'), 0.5)}${cedarDefs('pdfar', true)}</defs>
+  )}${aoGrad('pd-ao', v('ao-cool'), 0.5)}${cedarDefs('pdfar', true)}${radGrad('pd-mist', [
+    [0, v('mist'), 0.22],
+    [1, v('mist'), 0],
+  ])}</defs>
     ${[1160, 1250, 1340, 1430, 1520].map((x, i) => cedarFar(x, 642, 0.32 + (i % 2) * 0.06, 90 + i, 'pdfar')).join('')}
     ${band(640, 24, 'url(#pd-bandW)', 51)}${band(662, 18, 'url(#pd-bandG)', 52)}${band(678, 20, 'url(#pd-bandW)', 53)}${band(696, 14, 'url(#pd-bandG)', 54)}
     ${shadow(1035, 701, 70, 6, 'pd-ao', 0.6)}
@@ -92,7 +96,11 @@ export function paddyFarLayer(): Layer {
     )}
     ${ellipse(700, 636, 20, 4, '#6f6238')}${ellipse(700, 632, 20, 7, '#a08f5a')}
     ${fogRect('fog', -500, 590, 2600, 130)}`
-  const layer = makeSvgLayer('paddy-far', AIR.paddyFar, inner)
+  const mist = `${ellipse(300, 720, 700, 30, 'url(#pd-mist)')}${ellipse(1000, 735, 900, 40, 'url(#pd-mist)')}${ellipse(1500, 715, 700, 35, 'url(#pd-mist)')}`
+  const layer = makeSvgLayer('paddy-far', AIR.paddyFar, [
+    { part: 'horizon', inner },
+    { part: 'mist', inner: mist },
+  ])
   const fog = layer.el.querySelector('.fog')
   layer.update = (state) => {
     if (fog) {

@@ -44,7 +44,7 @@ test('scroll sweep stays inside the paint budget', async ({ page }) => {
   console.log('[bench]', JSON.stringify(r))
   expect(r.longTasks).toBe(0)
   expect(r.p95).toBeLessThanOrEqual(baseline.p95 * 1.35 + 2)
-  expect(r.partsMax).toBeLessThanOrEqual(24)
+  expect(r.partsMax).toBeLessThanOrEqual(32)
   expect(r.liveMax).toBeLessThanOrEqual(18)
 })
 

@@ -8,7 +8,7 @@ export function paddyEngawaLayer(): Layer {
   const rafters = Array.from({ length: 12 }, (_, i) =>
     rect(-200 + i * 190, -220, 16, 340, v('wood-mid'), 'opacity=".55"'),
   ).join('')
-  const inner = `<defs>${linGrad('pd-eave', [
+  const defs = `<defs>${linGrad('pd-eave', [
     [0, '#3a3128'],
     [1, '#5a4d3c'],
   ])}${fadeGrad('pd-rafterAO', v('ao-cool'), 0.4, 0)}${fadeGrad('pd-floorSheen', v('water-sheen'), 0.28, 0)}${fadeGrad(
@@ -16,7 +16,8 @@ export function paddyEngawaLayer(): Layer {
     v('wood-dark'),
     0.22,
     0,
-  )}${cyl('pd-post', v('wood-dark'), v('wood-mid'), v('wood-lit'), 0.3)}${aoGrad('pd-ao', v('ao-cool'), 0.5)}</defs>
+  )}${cyl('pd-post', v('wood-dark'), v('wood-mid'), v('wood-lit'), 0.3)}${aoGrad('pd-ao', v('ao-cool'), 0.5)}</defs>`
+  const eave = `${defs}
     ${path(
       wobbly(
         [
@@ -32,16 +33,22 @@ export function paddyEngawaLayer(): Layer {
     )}
     ${rafters}
     ${rect(-280, 100, 2160, 26, v('wood-dark'))}
-    ${rect(-280, 126, 2160, 30, 'url(#pd-rafterAO)')}
+    ${rect(-280, 126, 2160, 30, 'url(#pd-rafterAO)')}`
+  const boards = `
     ${rect(-280, 1000, 2160, 420, v('wood-mid'))}
     ${texRect('wood', -280, 1000, 2160, 420, 512, 0.35, 256)}
     <path d="M-280 1080H1880M-280 1160H1880M-280 1240H1880M-280 1320H1880" stroke="${v('wood-dark')}" stroke-width="2" opacity=".5"/>
     ${rect(-280, 1000, 2160, 90, 'url(#pd-floorSheen)')}
     ${rect(60, 1000, 64, 190, 'url(#pd-postRefl)')}
     ${rect(-280, 1000, 2160, 8, v('wet'), 'opacity=".35"')}
-    ${rect(60, -220, 64, 1640, 'url(#pd-post)')}${rect(60, -220, 6, 1640, v('wood-mid'), 'opacity=".5"')}
     ${shadow(240, 1074, 40, 8, 'pd-ao', 0.6)}${shadow(310, 1070, 40, 8, 'pd-ao', 0.6)}
     ${rect(210, 1050, 60, 24, v('wood-mid'), 'rx="10"')}${rect(280, 1046, 60, 24, v('wood-mid'), 'rx="10"')}
     <path d="M240 1050v-8M310 1046v-8" stroke="${v('indigo-cloth')}" stroke-width="4"/>`
-  return makeSvgLayer('paddy-engawa', AIR.paddyEngawa, inner)
+  const post = `
+    ${rect(60, -220, 64, 1640, 'url(#pd-post)')}${rect(60, -220, 6, 1640, v('wood-mid'), 'opacity=".5"')}`
+  return makeSvgLayer('paddy-engawa', AIR.paddyEngawa, [
+    { part: 'eave', inner: eave },
+    { part: 'boards', inner: boards },
+    { part: 'post', inner: post },
+  ])
 }

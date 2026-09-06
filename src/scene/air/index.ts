@@ -3,7 +3,7 @@ import type { Layer } from '../types'
 import { paddyEngawaLayer } from './engawa'
 import { groundLayer } from './ground'
 import { houseLayer } from './house'
-import { interiorFrameLayer, interiorRoomLayer } from './interior'
+import { interiorFrameLayer, interiorPropsLayer, interiorRoomLayer } from './interior'
 import { mtnFarLayer, mtnNearLayer } from './mountains'
 import { norenLayer } from './noren'
 import { paddyFarLayer, paddyPlaneLayer, paddyRiceNearLayer } from './paddy'
@@ -23,7 +23,8 @@ export function buildAirLayers(quality: Quality): Layer[] {
     paddyRiceNearLayer(),
     paddyEngawaLayer(),
     shojiLayer(),
-    interiorRoomLayer(quality),
+    interiorRoomLayer(),
+    interiorPropsLayer(quality),
     interiorFrameLayer(),
     houseLayer(),
     low ? null : norenLayer(quality),

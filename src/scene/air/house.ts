@@ -212,7 +212,16 @@ export function houseLayer(): Layer {
     ) +
     circle(1450, 758, 6, v('stone'))
 
-  const inner = `${defs}
+  const porchBand =
+    rect(H.left, H.wallBottom, H.sideRight - H.left, 22, 'url(#ex-porchTop)') +
+    texRect('wood', H.left, H.wallBottom, H.sideRight - H.left, 22, 256, 0.3, 22) +
+    rect(H.left, H.wallBottom, H.sideRight - H.left, 10, 'url(#ex-sheen)') +
+    `<path d="M${H.left} 818H${H.sideRight}M${H.left} 826H${H.sideRight}" stroke="${v('wood-mid')}" stroke-width="1" opacity=".5"/>` +
+    rect(H.left, 832, H.sideRight - H.left, 14, v('wood-dark'))
+
+  // Three depths: walls (500) behind the roof (470) behind the posts and yard (462); the porch
+  // band is drawn in both the walls and the posts part so the seam between them self-hides.
+  const walls = `${defs}
     ${path(
       wobbly(
         [
@@ -237,32 +246,29 @@ export function houseLayer(): Layer {
     ${rect(990, 592, 190, 228, 'url(#ex-spill)')}
     ${shojiPanel(1010, 612, 150, 188, { lit: true, cols: 2, rows: 5, prefix: 'ex-' })}
     ${rect(1018, 620, 134, 172, 'url(#ex-paperGlow)')}
-    ${post(H.left)}${post(DOORWAY.x - 22)}${post(DOORWAY.x + DOORWAY.w)}${post(H.right - 22)}
     ${rect(H.left, H.eaveY, H.sideRight - H.left, 90, 'url(#ex-eaveShadow)')}
     ${rect(H.left, 798, H.sideRight - H.left, 12, 'url(#ex-aoUp)')}
-    ${rect(H.left, H.wallBottom, H.sideRight - H.left, 22, 'url(#ex-porchTop)')}
-    ${texRect('wood', H.left, H.wallBottom, H.sideRight - H.left, 22, 256, 0.3, 22)}
-    ${rect(H.left, H.wallBottom, H.sideRight - H.left, 10, 'url(#ex-sheen)')}
-    <path d="M${H.left} 818H${H.sideRight}M${H.left} 826H${H.sideRight}" stroke="${v('wood-mid')}" stroke-width="1" opacity=".5"/>
-    ${rect(H.left, 832, H.sideRight - H.left, 14, v('wood-dark'))}
-    ${rect(820, 840, 100, 14, 'url(#ex-stepTop)', 'rx="6"')}
-    ${rect(820, 840, 100, 5, 'url(#ex-sheen)', 'rx="3"')}
-    ${rect(290, 846, 1050, 22, '#6a6e6b', 'opacity=".8"')}
-    ${texRect('stone', 290, 846, 1050, 22, 128, 0.4, 22)}
-    ${rect(290, 846, 1050, 10, v('wet'), 'opacity=".25"')}
-    ${pebbles}
-    ${path(
-      wobbly(
-        [
-          [300, H.eaveY],
-          [560, H.ridgeY],
-          [1090, H.ridgeY],
-          [1330, H.eaveY],
-        ],
-        3,
-        2,
-      ),
+    ${porchBand}`
+
+  const roof = `
+    ${textured(
+      'ex-roofClip',
+      (fill) =>
+        path(
+          wobbly(
+            [
+              [300, H.eaveY],
+              [560, H.ridgeY],
+              [1090, H.ridgeY],
+              [1330, H.eaveY],
+            ],
+            3,
+            2,
+          ),
+          fill,
+        ),
       'url(#ex-thatch)',
+      texRect('thatch', 300, H.ridgeY, 1030, H.eaveY - H.ridgeY, 256, 0.55, 512),
     )}
     ${polygon(
       [
@@ -299,29 +305,50 @@ export function houseLayer(): Layer {
       v('wood-dark'),
     )}
     <path d="M1060 418V385M1090 418V366M1120 418V385M1045 402H1135" stroke="${v('wood-light')}" stroke-width="1.5" opacity=".4"/>
-    ${path(
-      wobbly(
-        [
-          [300, 588],
-          [1330, 588],
-          [1330, 610],
-          [300, 610],
-        ],
-        5,
-        3,
-      ),
+    ${textured(
+      'ex-fasciaClip',
+      (fill) =>
+        path(
+          wobbly(
+            [
+              [300, 588],
+              [1330, 588],
+              [1330, 610],
+              [300, 610],
+            ],
+            5,
+            3,
+          ),
+          fill,
+        ),
       'url(#ex-fascia)',
+      texRect('thatchV', 300, 586, 1030, 26, 512, 0.5, 26),
     )}
     <path d="M310 591H1320" stroke="${v('thatch-light')}" stroke-width="2" opacity=".5"/>
     ${rect(540, 336, 570, 26, v('thatch-dark'), 'rx="12"')}
     ${rect(540, 362, 570, 20, 'url(#ex-ridgeLit)')}
     <path d="M552 342H1098" stroke="${v('thatch-light')}" stroke-width="3" opacity=".6"/>
-    ${[600, 710, 820, 930, 1040].map((x) => rect(x - 4, 326, 8, 30, v('wood-dark'), 'rx="4"')).join('')}
+    ${[600, 710, 820, 930, 1040].map((x) => rect(x - 4, 326, 8, 30, v('wood-dark'), 'rx="4"')).join('')}`
+
+  const posts = `
+    ${post(H.left)}${post(DOORWAY.x - 22)}${post(DOORWAY.x + DOORWAY.w)}${post(H.right - 22)}
+    ${porchBand}
+    ${rect(820, 840, 100, 14, 'url(#ex-stepTop)', 'rx="6"')}
+    ${rect(820, 840, 100, 5, 'url(#ex-sheen)', 'rx="3"')}
+    ${rect(290, 846, 1050, 22, '#6a6e6b', 'opacity=".8"')}
+    ${texRect('stone', 290, 846, 1050, 22, 128, 0.4, 22)}
+    ${rect(290, 846, 1050, 10, v('wet'), 'opacity=".25"')}
+    ${pebbles}
     ${chain}
     ${lantern}
     <rect class="fog" x="-400" y="-400" width="2400" height="2000" fill="${v('fog-color')}" opacity="0"/>`
 
-  const layer = makeSvgLayer('house', AIR.house, inner)
+  const layer = makeSvgLayer('house', AIR.house, [
+    { part: 'walls', inner: walls },
+    { part: 'roof', inner: roof },
+    { part: 'posts', inner: posts },
+  ])
+
   const fog = layer.el.querySelector('.fog')
   layer.update = (state) => {
     if (fog) {

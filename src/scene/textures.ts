@@ -36,7 +36,13 @@ interface Spec {
 }
 
 /** Module-level switches read by texRect()/textured() so layers can be built before the tiles resolve. */
-export const TEX = { level: 'full' as TexLevel, clip: true, single: false }
+export const TEX = {
+  level: 'full' as TexLevel,
+  clip: true,
+  single: false,
+  skip: [] as string[],
+  res: 0,
+}
 /**
  * Above this part scale texture images are hidden: they are blurry anyway while the layer is
  * dissolving, and Skia's upscale of a tile into a huge destination rect stalled raster workers
@@ -348,11 +354,12 @@ export function createTextures(quality: Quality, override?: string | null): Text
   const canvases = new Map<TexId, HTMLCanvasElement>()
   const pending: Promise<void>[] = []
   const t0 = performance.now()
-  const res = level === 'small' ? 0.5 : 1
+  const res = TEX.res || (level === 'small' ? 0.5 : 1)
   if (level !== 'off') {
     for (const id of Object.keys(SPECS) as TexId[]) {
       const spec = SPECS[id]
       if (level === 'small' && spec.heavy) continue
+      if (TEX.skip.includes(id)) continue
       const cv = document.createElement('canvas')
       cv.width = Math.max(8, Math.round(spec.w * res))
       cv.height = Math.max(8, Math.round(spec.h * res))

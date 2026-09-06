@@ -7,6 +7,7 @@ import { detectQuality } from './config/quality'
 import { createFx } from './fx'
 import { createGradeStack, installGrainTile } from './fx/grade'
 import { buildAirLayers } from './scene/air'
+import { LAYER_DEFAULTS } from './scene/layer'
 import { createStage, type Stage } from './scene/stage'
 import { computeState } from './scene/state'
 import type { SceneState, StageSize } from './scene/types'
@@ -50,7 +51,10 @@ const waterline = mustGet('.waterline')
 const airWorld = mustGet('#stage-air .world')
 const waterWorld = mustGet('#stage-water .world')
 
+LAYER_DEFAULTS.microParallax = quality.microParallax
 // Material tiles are generated before the layers are built (texRect reads the level).
+TEX.skip = params.get('texskip')?.split(',') ?? []
+TEX.res = Number(params.get('texres') ?? 0)
 const textures = createTextures(quality, params.get('tex'))
 if (params.get('texclip') === 'off') TEX.clip = false
 if (params.get('texgrid') === 'single') TEX.single = true

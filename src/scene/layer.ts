@@ -3,6 +3,9 @@ import type { Layer, LayerOpts, Part } from './types'
 
 export const VIEWBOX = `0 0 ${DESIGN.w} ${DESIGN.h}`
 
+/** Set from the quality tier before layers are built; opts.microParallax overrides per layer. */
+export const LAYER_DEFAULTS = { microParallax: true }
+
 /** Markup for one part of a layer. Parts paint in array order (far -> near). */
 export interface PartMarkup {
   part: string
@@ -35,7 +38,7 @@ export function makeSvgLayer(
   const list: readonly PartMarkup[] = typeof inner === 'string' ? [{ part: 'main', inner }] : inner
   // Low tier: one viewport (one write per frame), paint order preserved.
   const merged =
-    list.length > 1 && opts.microParallax === false
+    list.length > 1 && !(opts.microParallax ?? LAYER_DEFAULTS.microParallax)
       ? [{ part: 'main', inner: list.map((p) => p.inner).join('') }]
       : list
   el.innerHTML = svgDoc(merged)
