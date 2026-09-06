@@ -119,6 +119,10 @@ export interface RainState {
   eave: { x0: number; x1: number; y: number } | null
   /** shoji paper rects (screen px) that show rain running down outside (null = none) */
   paperClip: Rect[] | null
+  /** apparent fall speed multiplier (scroll speed toward the rain stretches and hurries it) */
+  speed: number
+  /** horizontal slant factor -1..1 from the view yaw against a fixed world wind */
+  slant: number
 }
 
 export interface RippleState {
@@ -147,8 +151,10 @@ export interface SceneState {
   air: { visible: boolean }
   water: { visible: boolean; grade: number; rays: number; fishReveal: readonly [number, number] }
   grade: GradeVars
-  /** sky hotspot x in % (moves behind the camera while the room hides the sky) */
-  sunX: number
+  /** face the camera looks at during the turn (0..4, fractional between faces) */
+  pan: number
+  /** view yaw in degrees during the turn (0 = back wall, 180 = the entrance) */
+  yaw: number
   slots: Record<SlotId, number>
   hint: number
   reduced: boolean

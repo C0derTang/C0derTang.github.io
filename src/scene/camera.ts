@@ -1,9 +1,10 @@
-import { CAM_X_KEYS, CAM_Y_KEYS, CAM_Z_KEYS } from '../config/beats'
+import { CAM_X_KEYS, CAM_Y_KEYS, CAM_Z_KEYS, FOCAL } from '../config/beats'
 import { monotoneCubic, smoothstep } from '../util/math'
+import { panCx } from './panorama'
 import type { Cam, Projection, Pt, Rect, StageSize } from './types'
 
 /** Focal length in design px. */
-export const P = 1000
+export const P = FOCAL
 /** Planes closer to the eye than this pass-through ratio are hidden. */
 export const NEAR_CLIP = 0.88
 
@@ -53,9 +54,10 @@ const bump = (t: number, c: number, w: number): number => Math.max(0, 1 - Math.a
  * wall-clock time, so frames stay reproducible.
  */
 export const camera = (t: number, still = false): Cam => {
-  const base = { cz: czOf(t), cx: cxOf(t), cy: cyOf(t) }
+  // The pan across the house faces rides on the authored path (see panorama.ts).
+  const base = { cz: czOf(t), cx: cxOf(t) + panCx(t), cy: cyOf(t) }
   if (still) return base
-  return { ...base, p: P - 50 * (bump(t, 0.375, 0.035) + bump(t, 0.605, 0.03)) }
+  return { ...base, p: P - 50 * (bump(t, 0.285, 0.03) + bump(t, 0.63, 0.03)) }
 }
 
 /** Design px -> stage px (before the layer transform). */

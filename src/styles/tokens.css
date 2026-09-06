@@ -125,3 +125,45 @@
   --uw-caustic: #d9f0e6;
   --uw-silt: #c8d6c9;
 }
+
+/* ink and wash (brush pass): paper ground, ink by depth, washes from the rainy-valley photo */
+:root {
+  --paper-sky: #e8ebe8;
+  --paper-sky-low: #d6dcdb;
+  --paper-sky-horizon: #cfd7d6;
+  --cloud: #eef1ef;
+  --ink: #1a1c1e;
+  --ink-mid: #3b4448;
+  --ink-far: #6b767c;
+  --ridge-far: #8a9aa3;
+  --ridge-mid: #66797f;
+  --hills: #3f5a4b;
+  --cedar-wash: #33503f;
+  --cedar-wash-2: #4c6b4a;
+  --hedge: #4a6d3f;
+  --rice-wash: #9fb95a;
+  --rice-bright: #c3cf6a;
+  --road: #8d9394;
+  --puddle: #c9d0d0;
+  --stone-wall: #8d918a;
+  --stone-wall-dark: #6d716b;
+  --thatch-wash: #7a6a4f;
+  --thatch-wash-dark: #4b4335;
+  --wood-wash: #6b5340;
+  --wood-wash-dark: #3d2e24;
+  --window-amber: #f0c070;
+  --lamp-core: #fff1c8;
+  --hydrangea-violet: #8e8cc9;
+  --hydrangea-pink: #b48fc4;
+  --hydrangea-blue: #6f95cc;
+  --leaf: #3d6b3f;
+  --bicycle: #8a4a3a;
+  --tyre: #2b2d2f;
+  --indigo-wash: #2f3a63;
+  --uw-wash: #3d7a76;
+  --uw-wash-deep: #1f4d55;
+  --mud-wash: #5a4a3a;
+  --koi-orange-wash: #e0703a;
+  --loach-wash: #6b6349;
+  --funa-wash: #6d7a58;
+}

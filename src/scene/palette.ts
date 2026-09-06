@@ -7,6 +7,12 @@ export const PALETTE = {
   splash: '#e6eef0',
   uwDeep: '#1c3f4e',
   silt: '#c8d6c9',
+  /* ink and wash */
+  ink: '#1a1c1e',
+  inkMid: '#3b4448',
+  inkFar: '#6b767c',
+  paper: '#e8ebe8',
+  rainInk: '#3b4448',
 } as const
 
 export function rgba(hex: string, a: number): string {

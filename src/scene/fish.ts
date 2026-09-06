@@ -1,5 +1,6 @@
-import { animate } from 'animejs'
+import { createTimer } from 'animejs'
 import { circle, ellipse, f, linGrad, path, pivot, radGrad, rect, v } from './draw'
+import { mulberry32 } from '../util/math'
 
 /**
  * Three rice-paddy fish as SVG rigs in a local 200x80 box (head at the right).
@@ -20,6 +21,10 @@ export interface FishSpec {
   /** 0..1 starting progress along the lane */
   offset?: number
   variant?: KoiVariant
+  /** id of the fish this one schools behind (funa followers) */
+  leader?: string
+  /** place in the school: spacing along the lane = rank * ~130 px */
+  rank?: number
 }
 
 const DEFS_ID = 'fish-defs'
@@ -187,79 +192,234 @@ export function fishMarkup(spec: FishSpec, prefix: string, withShadow = true): s
     ${shadow}<g class="fish-mover" data-fish="${spec.id}"><g transform="scale(${f(spec.scale)}) translate(-100 -40)">${inner}</g></g>`
 }
 
-const loop = { loop: true, alternate: true, ease: 'inOutSine' } as const
+/* ---------- locomotion ---------- */
 
-/** Start the undulation loops for one fish group (time-based, scroll-independent). */
-export function startRig(fish: Element, species: Species): void {
-  const q = (cls: string) => fish.querySelector(`.${cls}`)
-  const rig = (cls: string, from: number, to: number, duration: number, delay = 0) => {
-    const el = q(cls)
-    if (el) animate(el, { rotate: [from, to], duration, delay, ...loop })
+const MUD_Y = 985
+const SEG_CLASSES: Readonly<Record<Species, readonly string[]>> = {
+  koi: ['rig-rear', 'rig-tail'],
+  dojo: ['rig-s1', 'rig-s2', 'rig-s3', 'rig-tail'],
+  funa: ['rig-rear', 'rig-tail'],
+}
+
+type Mode = 'burst' | 'glide' | 'rest' | 'dart' | 'cruise'
+
+interface Swimmer {
+  spec: FishSpec
+  mover: Element
+  lane: SVGPathElement
+  total: number
+  shadow: Element | null
+  /** body chain head -> tail (each a pivot group rotated about its joint) */
+  segs: (Element | null)[]
+  body: Element | null
+  pec: Element | null
+  dorsal: Element | null
+  rnd: () => number
+  s: number
+  v: number
+  vBase: number
+  phase: number
+  amp: number
+  heading: number
+  turn: number
+  cycleT: number
+  cycleLen: number
+  mode: Mode
+  lateral: number
+  left: boolean
+}
+
+const wrapLen = (l: number, total: number): number => ((l % total) + total) % total
+const clampN = (x: number, a: number, b: number): number => (x < a ? a : x > b ? b : x)
+const approach = (x: number, target: number, dt: number, tau: number): number =>
+  dt > 0 ? x + (target - x) * (1 - Math.exp(-dt / tau)) : target
+
+/** Speed by behaviour: burst-and-glide cycles, the loach's rest / dart / cruise, or a school follower's spring. */
+function drive(sw: Swimmer, dt: number, leader: Swimmer | null): void {
+  const { rnd } = sw
+  if (leader) {
+    // Follower: hold a spacing behind the leader along the lane with a damped spring.
+    const spacing = (sw.spec.rank ?? 1) * 130
+    let err = wrapLen(leader.s - spacing - sw.s, sw.total)
+    if (err > sw.total / 2) err -= sw.total
+    const a = 2.5 * err + 1.6 * (leader.v - sw.v)
+    sw.v = clampN(sw.v + a * dt, 0.2 * sw.vBase, 2.6 * sw.vBase)
+    sw.mode = leader.mode
+    return
   }
-  if (species === 'koi') {
-    rig('rig-tail', -12, 12, 700)
-    rig('rig-rear', -5, 5, 700, 90)
-    rig('rig-pec', -14, -2, 900, 200)
-    const body = q('rig-body')
-    if (body) animate(body, { skewX: [-2.5, 2.5], duration: 1400, ...loop })
-  } else if (species === 'dojo') {
-    rig('rig-s1', -7, 7, 550)
-    rig('rig-s2', -7, 7, 550, 110)
-    rig('rig-s3', -7, 7, 550, 220)
-    rig('rig-tail', -9, 9, 550, 330)
-  } else {
-    rig('rig-tail', -10, 10, 450)
-    rig('rig-rear', -4, 4, 450, 60)
-    rig('rig-dorsal', -4, 4, 1500)
+  sw.cycleT += dt
+  if (sw.spec.species === 'dojo') {
+    if (sw.cycleT >= sw.cycleLen) {
+      sw.cycleT = 0
+      if (sw.mode === 'rest') {
+        sw.mode = 'dart'
+        sw.cycleLen = 0.8
+      } else if (sw.mode === 'dart') {
+        sw.mode = 'cruise'
+        sw.cycleLen = 2 + rnd() * 1.5
+      } else {
+        sw.mode = 'rest'
+        sw.cycleLen = 2 + rnd() * 2
+      }
+    }
+    const target = sw.mode === 'rest' ? 0 : sw.mode === 'dart' ? sw.vBase * 3 : sw.vBase
+    const tau = sw.mode === 'rest' ? 0.4 : sw.mode === 'dart' ? 0.15 : 0.8
+    sw.v = approach(sw.v, target, dt, tau)
+    return
+  }
+  if (sw.cycleT >= sw.cycleLen) {
+    sw.cycleT = 0
+    sw.cycleLen = 3 + rnd() * 3
+  }
+  const burst = sw.cycleT < sw.cycleLen * 0.35
+  sw.mode = burst ? 'burst' : 'glide'
+  sw.v = approach(sw.v, burst ? sw.vBase * 1.6 : sw.vBase * 0.55, dt, burst ? 0.6 : 1.8)
+}
+
+/** Pose from the lane: position, heading (unwrapped for the turn rate), mirror for leftward travel, mud shadow. */
+function place(sw: Swimmer, dt: number): void {
+  const { lane, total } = sw
+  const p = lane.getPointAtLength(wrapLen(sw.s, total))
+  const q = lane.getPointAtLength(wrapLen(sw.s + 4, total))
+  const dx = q.x - p.x
+  const dy = q.y - p.y
+  const len = Math.hypot(dx, dy) || 1
+  const h = Math.atan2(dy, dx)
+  let d = h - sw.heading
+  d = Math.atan2(Math.sin(d), Math.cos(d))
+  const rate = dt > 0 ? d / dt : 0
+  sw.turn = approach(sw.turn, rate, dt, 0.12)
+  sw.heading += d
+  const x = p.x + (-dy / len) * sw.lateral
+  const y = p.y + (dx / len) * sw.lateral
+  let deg = (h * 180) / Math.PI
+  sw.left = dx < 0
+  if (sw.left) deg -= 180
+  sw.mover.setAttribute(
+    'transform',
+    `translate(${f(x)} ${f(y)}) rotate(${f(deg)})${sw.left ? ' scale(-1 1)' : ''}`,
+  )
+  if (sw.shadow) {
+    // Contact shadow on the mud: strongest for a fish hugging the bottom, faint mid-water.
+    const strength = 0.35 * (1 - Math.min(1, Math.max(0, (MUD_Y - y) / 700)))
+    sw.shadow.setAttribute('transform', `translate(${f(x)} ${f(MUD_Y)})`)
+    sw.shadow.setAttribute('opacity', strength.toFixed(3))
   }
 }
 
 /**
- * Lane following: anime.js animates a length along the closed lane; the mover's transform is
- * derived from the point and tangent. Leftward travel mirrors the fish so it is never belly-up.
+ * Body wave and bend: a travelling sine down the chain whose rate follows speed and whose
+ * amplitude follows the mode, plus a bend from the turn rate so the tail swings outside the
+ * turn, and a small bank (skew) on the body. Mirrored fish flip the bend sign.
  */
-export function startLane(
-  mover: Element,
-  lane: SVGPathElement,
-  spec: FishSpec,
-  reduced: boolean,
-  shadowEl: Element | null = null,
-): void {
-  const total = lane.getTotalLength()
-  if (!(total > 0)) return
-  const MUD_Y = 985
-  const place = (len: number) => {
-    const wrap = (l: number) => ((l % total) + total) % total
-    const p = lane.getPointAtLength(wrap(len))
-    const p0 = lane.getPointAtLength(wrap(len - 3))
-    const p1 = lane.getPointAtLength(wrap(len + 3))
-    const dx = p1.x - p0.x
-    const dy = p1.y - p0.y
-    let deg = (Math.atan2(dy, dx) * 180) / Math.PI
-    const left = dx < 0
-    if (left) deg -= 180
-    mover.setAttribute(
-      'transform',
-      `translate(${f(p.x)} ${f(p.y)}) rotate(${f(deg)})${left ? ' scale(-1 1)' : ''}`,
-    )
-    if (shadowEl) {
-      // Contact shadow on the mud: strongest for a fish hugging the bottom, faint mid-water.
-      const strength = 0.35 * (1 - Math.min(1, Math.max(0, (MUD_Y - p.y) / 700)))
-      shadowEl.setAttribute('transform', `translate(${f(p.x)} ${f(MUD_Y)})`)
-      shadowEl.setAttribute('opacity', strength.toFixed(3))
-    }
+function wave(sw: Swimmer, dt: number): void {
+  const sp = sw.spec.species
+  const rel = sw.vBase > 0 ? sw.v / sw.vBase : 0
+  let freq: number
+  let ampTarget: number
+  let lag: number
+  if (sp === 'koi') {
+    freq = 0.8 + 0.7 * rel
+    ampTarget = sw.mode === 'burst' ? 14 : 5
+    lag = 1.1
+  } else if (sp === 'dojo') {
+    freq = sw.mode === 'rest' ? 0.6 : sw.mode === 'dart' ? 4 : 2.2
+    ampTarget = sw.mode === 'rest' ? 1.5 : sw.mode === 'dart' ? 14 : 8
+    lag = 1.05
+  } else {
+    freq = 1.2 + 0.9 * rel
+    ampTarget = sw.mode === 'burst' ? 10 : 4
+    lag = 1
   }
-  const start = (spec.offset ?? 0) * total
-  place(start) // initial pose; the loop below only advances it
-  if (reduced) return
-  const state = { len: start }
-  animate(state, {
-    len: start + total,
-    duration: spec.duration * 1000,
-    ease: 'linear',
-    loop: true,
-    onUpdate: () => {
-      place(state.len)
+  sw.phase += freq * dt
+  sw.amp = approach(sw.amp, ampTarget, dt, 0.5)
+  const sign = sw.left ? -1 : 1
+  const bend = clampN(sign * sw.turn * 14, -18, 18)
+  const n = sw.segs.length
+  sw.segs.forEach((seg, i) => {
+    if (!seg) return
+    const share = (i + 1) / n
+    const a = sw.amp * (0.35 + 0.65 * share) * Math.sin(sw.phase * Math.PI * 2 - i * lag)
+    seg.setAttribute('transform', `rotate(${f(a + bend * share)})`)
+  })
+  if (sw.body) {
+    const bank = clampN(-sign * sw.turn * 6, -8, 8)
+    const breathe = 2 * Math.sin(sw.phase * Math.PI * 2)
+    sw.body.setAttribute('transform', `skewX(${f(bank + breathe)})`)
+  }
+  if (sw.pec)
+    sw.pec.setAttribute('transform', `rotate(${f(-8 + 7 * Math.sin(sw.phase * Math.PI))})`)
+  if (sw.dorsal)
+    sw.dorsal.setAttribute('transform', `rotate(${f(3 * Math.sin(sw.phase * Math.PI))})`)
+}
+
+/**
+ * Start every fish under `root`: one anime timer per layer ticks the swimmers from the
+ * director's engine update (frozen frames stay still). Reduced motion places the start pose
+ * once and never animates.
+ */
+export function startSwim(root: Element, specs: readonly FishSpec[], reduced: boolean): void {
+  const swimmers: Swimmer[] = []
+  for (const spec of specs) {
+    const mover = root.querySelector(`[data-fish="${spec.id}"]`)
+    const lane = root.querySelector<SVGPathElement>(`[data-lane="${spec.id}"]`)
+    if (!mover || !lane) continue
+    const total = lane.getTotalLength()
+    if (!(total > 0)) continue
+    const q = (cls: string) => mover.querySelector(`.${cls}`)
+    const seed = [...spec.id].reduce((acc, ch) => acc * 31 + ch.charCodeAt(0), 7) >>> 0
+    const rnd = mulberry32(seed)
+    const vBase = total / Math.max(1, spec.duration)
+    const sw: Swimmer = {
+      spec,
+      mover,
+      lane,
+      total,
+      shadow: root.querySelector(`[data-shadow="${spec.id}"]`),
+      segs: SEG_CLASSES[spec.species].map(q),
+      body: spec.species === 'koi' ? q('rig-body') : null,
+      pec: spec.species === 'koi' ? q('rig-pec') : null,
+      dorsal: spec.species === 'funa' ? q('rig-dorsal') : null,
+      rnd,
+      s: (spec.offset ?? 0) * total,
+      v: vBase,
+      vBase,
+      phase: rnd(),
+      amp: spec.species === 'dojo' ? 1.5 : 5,
+      heading: 0,
+      turn: 0,
+      cycleT: rnd() * 2,
+      cycleLen: spec.species === 'dojo' ? 1 + rnd() : 3 + rnd() * 3,
+      mode: spec.species === 'dojo' ? 'cruise' : 'glide',
+      lateral: 0,
+      left: false,
+    }
+    // Initial heading from the lane so the first frame carries no turn.
+    const p = lane.getPointAtLength(wrapLen(sw.s, total))
+    const p1 = lane.getPointAtLength(wrapLen(sw.s + 4, total))
+    sw.heading = Math.atan2(p1.y - p.y, p1.x - p.x)
+    place(sw, 0)
+    wave(sw, 0)
+    swimmers.push(sw)
+  }
+  if (reduced || swimmers.length === 0) return
+  const byId = new Map(swimmers.map((sw) => [sw.spec.id, sw]))
+  let clock = 0
+  createTimer({
+    onUpdate: (self) => {
+      const dt = Math.min(self.deltaTime, 50) / 1000
+      if (dt <= 0) return
+      clock += dt
+      for (const sw of swimmers) {
+        const leader = sw.spec.leader ? (byId.get(sw.spec.leader) ?? null) : null
+        drive(sw, dt, leader)
+        // School members drift a little to the side of the lane so the group stays loose.
+        if (leader || sw.spec.rank !== undefined)
+          sw.lateral = 22 * Math.sin(clock * 0.4 + (sw.spec.rank ?? 0) * 1.7)
+        sw.s += sw.v * dt
+        place(sw, dt)
+        wave(sw, dt)
+      }
     },
   })
 }

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const FRACTIONS = [0, 0.15, 0.35, 0.5, 0.7, 0.9, 1]
+const FRACTIONS = [0, 0.12, 0.28, 0.36, 0.41, 0.46, 0.55, 0.68, 0.9, 1]
 
 test('plays every beat without console errors', async ({ page }, testInfo) => {
   const errors: string[] = []
@@ -56,14 +56,14 @@ test('plays every beat without console errors', async ({ page }, testInfo) => {
         .join('\n'),
     )
   const forward: Record<number, string> = {}
-  for (const f of [0.35, 0.5, 0.7]) {
+  for (const f of [0.36, 0.46, 0.55, 0.68]) {
     await page.evaluate((frac) => {
       window.__scene?.seek(frac)
     }, f)
     await page.waitForTimeout(100)
     forward[f] = await snapshot()
   }
-  for (const f of [0.7, 0.5, 0.35]) {
+  for (const f of [0.68, 0.55, 0.46, 0.36]) {
     await page.evaluate((frac) => {
       window.__scene?.seek(frac)
     }, f)

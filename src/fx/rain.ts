@@ -48,6 +48,8 @@ export function createRain(canvas: Canvas2D, quality: Quality): Fx {
   let H = 1
   let lastTime = -1
   let lastEaveKey = ''
+  // Apparent speed follows the scroll with a 150 ms lag so a flick never flickers.
+  let speed = 1
 
   const populate = () => {
     const area = (W * H) / 1e6
@@ -75,12 +77,16 @@ export function createRain(canvas: Canvas2D, quality: Quality): Fx {
       const dt = lastTime < 0 || state.reduced ? 0 : Math.min((time - lastTime) / 1000, 0.05)
       lastTime = time
 
-      // gust: slow angle/speed drift
+      // gust: slow angle/speed drift; slant follows the view yaw against the world wind
       const gust = Math.sin(time / 7300) * 0.5 + Math.sin(time / 2900) * 0.5
-      const angle = ((12 + 4 * gust) * Math.PI) / 180
+      speed =
+        dt > 0 ? speed + (state.rain.speed - speed) * (1 - Math.exp(-dt / 0.15)) : state.rain.speed
+      const angle = ((12 + 4 * gust) * state.rain.slant * Math.PI) / 180
       const dx = Math.sin(angle)
       const dy = Math.cos(angle)
-      const speedMul = 1 + 0.15 * gust
+      const speedMul = (1 + 0.15 * gust) * speed
+      const stretch = 0.4 + 0.6 * speed
+      const fade = 1 / (0.7 + 0.3 * speed)
 
       ctx.save()
       if (state.rain.clip) clipRects(ctx, state.rain.clip)
@@ -89,8 +95,8 @@ export function createRain(canvas: Canvas2D, quality: Quality): Fx {
       BANDS.forEach((b, i) => {
         const list = bands[i]
         if (!list) return
-        const len = b.len * H
-        ctx.strokeStyle = rgba(PALETTE.rainStreak, b.alpha * alpha)
+        const len = b.len * H * stretch
+        ctx.strokeStyle = rgba(PALETTE.rainStreak, b.alpha * alpha * fade)
         ctx.lineWidth = b.width
         ctx.beginPath()
         const groundY = i === 2 ? state.rain.groundY : null

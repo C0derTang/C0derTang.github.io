@@ -20,6 +20,8 @@ export type TexId =
   | 'bark'
   | 'causticA'
   | 'causticB'
+  | 'paper'
+  | 'wash'
 
 export type TexLevel = 'full' | 'small' | 'off'
 
@@ -327,6 +329,58 @@ const caustic: Draw = (c, rnd, w, h) => {
   })
 }
 
+/** Cold-pressed paper for the fixed grain element: mottling, fibres at three angles, fine grain. */
+const paper: Draw = (c, rnd, w, h) => {
+  noiseTile(2, 0.9, 0.22)(c, rnd, w, h)
+  const angles = [0.15, 1.1, 2.4]
+  const fibres = Array.from({ length: Math.round((w * h) / 700) }, () => ({
+    x: rnd() * w,
+    y: rnd() * h,
+    len: 6 + rnd() * 22,
+    a: (angles[Math.floor(rnd() * 3)] ?? 0) + (rnd() - 0.5) * 0.3,
+    dark: rnd() < 0.7,
+  }))
+  const grain = Array.from({ length: Math.round((w * h) / 110) }, () => ({
+    x: rnd() * w,
+    y: rnd() * h,
+    dark: rnd() < 0.5,
+  }))
+  c.lineCap = 'round'
+  c.lineWidth = 0.8
+  wrap(c, w, h, () => {
+    for (const k of fibres) {
+      c.strokeStyle = k.dark ? 'rgba(0,0,0,.07)' : 'rgba(255,255,255,.09)'
+      c.beginPath()
+      c.moveTo(k.x, k.y)
+      c.lineTo(k.x + Math.cos(k.a) * k.len, k.y + Math.sin(k.a) * k.len)
+      c.stroke()
+    }
+  })
+  for (const g of grain) {
+    c.fillStyle = g.dark ? 'rgba(0,0,0,.08)' : 'rgba(255,255,255,.08)'
+    c.fillRect(g.x, g.y, 1, 1)
+  }
+}
+
+/** Watercolour granulation clipped inside large washes: coarse blotches plus pigment specks. */
+const washTile: Draw = (c, rnd, w, h) => {
+  noiseTile(3, 1.3, 0.5)(c, rnd, w, h)
+  const specks = Array.from({ length: 450 }, () => ({
+    x: rnd() * w,
+    y: rnd() * h,
+    r: 0.6 + rnd() * 1.4,
+    dark: rnd() < 0.6,
+  }))
+  wrap(c, w, h, () => {
+    for (const s of specks) {
+      c.fillStyle = s.dark ? 'rgba(0,0,0,.10)' : 'rgba(255,255,255,.12)'
+      c.beginPath()
+      c.arc(s.x, s.y, s.r, 0, Math.PI * 2)
+      c.fill()
+    }
+  })
+}
+
 const SPECS: Readonly<Record<TexId, Spec>> = {
   thatch: { w: 256, h: 512, seed: 101, draw: thatch },
   thatchV: { w: 512, h: 256, seed: 101, draw: thatch, rotateOf: 'thatch' },
@@ -340,6 +394,8 @@ const SPECS: Readonly<Record<TexId, Spec>> = {
   bark: { w: 64, h: 256, seed: 107, draw: bark },
   causticA: { w: 512, h: 256, seed: 108, draw: caustic },
   causticB: { w: 512, h: 256, seed: 109, draw: caustic },
+  paper: { w: 512, h: 512, seed: 110, draw: paper },
+  wash: { w: 256, h: 256, seed: 111, draw: washTile, heavy: true },
 }
 
 export function createTextures(quality: Quality, override?: string | null): Textures {

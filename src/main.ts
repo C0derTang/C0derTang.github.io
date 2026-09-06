@@ -7,6 +7,7 @@ import { detectQuality } from './config/quality'
 import { createFx } from './fx'
 import { createGradeStack, installGrainTile } from './fx/grade'
 import { buildAirLayers } from './scene/air'
+import { INK } from './scene/draw'
 import { LAYER_DEFAULTS } from './scene/layer'
 import { createStage, type Stage } from './scene/stage'
 import { computeState } from './scene/state'
@@ -43,7 +44,6 @@ const quality = detectQuality(params)
 const html = document.documentElement
 html.dataset.tier = quality.tier
 html.style.setProperty('--scroll-len', String(SCROLL_LEN_VH[quality.tier]))
-installGrainTile()
 
 const stageAir = mustGet('#stage-air')
 const stageWater = mustGet('#stage-water')
@@ -52,10 +52,13 @@ const airWorld = mustGet('#stage-air .world')
 const waterWorld = mustGet('#stage-water .world')
 
 LAYER_DEFAULTS.microParallax = quality.microParallax
+INK.detail = quality.detail
 // Material tiles are generated before the layers are built (texRect reads the level).
 TEX.skip = params.get('texskip')?.split(',') ?? []
 TEX.res = Number(params.get('texres') ?? 0)
 const textures = createTextures(quality, params.get('tex'))
+// The paper tile on the fixed grain element gives every layer the watercolour surface for free.
+installGrainTile(textures.url('paper'))
 if (params.get('texclip') === 'off') TEX.clip = false
 if (params.get('texgrid') === 'single') TEX.single = true
 
@@ -106,14 +109,14 @@ const bench = params.has('bench') ? createBench(lenis, air, water, textures.gene
 let lastState: SceneState | undefined
 director.onFrame((f) => {
   const t0 = performance.now()
-  const state = computeState(f.t, f.time, f.dt, size, quality)
+  const scrollVel = f.dt > 0 && lenis.limit > 0 ? f.velocity / lenis.limit / f.dt : 0
+  const state = computeState(f.t, f.time, f.dt, size, quality, scrollVel)
   lastState = state
   air.render(state, state.cam)
   air.setPortalClip(state.portal)
   water.render(state, state.waterCam)
 
   styleWrite(stageAir, 'visibility', state.air.visible ? 'visible' : 'hidden')
-  styleWrite(stageAir, '--sun-x', `${state.sunX.toFixed(1)}%`)
   styleWrite(stageWater, 'visibility', state.water.visible ? 'visible' : 'hidden')
   styleWrite(
     waterline,

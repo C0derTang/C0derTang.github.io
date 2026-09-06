@@ -88,14 +88,14 @@
 .sky {
   position: absolute;
   inset: 0;
-  /* a soft bright patch anchors the light direction; --sun-x is written on #stage-air by the director */
-  background:
-    radial-gradient(
-      ellipse 60% 45% at var(--sun-x, 28%) 8%,
-      rgba(236, 240, 242, 0.45),
-      transparent 70%
-    ),
-    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 45%, var(--sky-low) 68%, #c9cfd0 100%);
+  /* the paper ground of the drawing: near-white overcast, a touch cooler toward the horizon */
+  background: linear-gradient(
+    180deg,
+    var(--paper-sky) 0%,
+    var(--paper-sky) 38%,
+    var(--paper-sky-low) 72%,
+    var(--paper-sky-horizon) 100%
+  );
 }
 .backdrop {
   position: absolute;
@@ -142,9 +142,9 @@
 }
 #grain {
   background-image: var(--grain-tile);
-  background-size: 256px 256px;
+  background-size: var(--grain-size, 256px) var(--grain-size, 256px);
   opacity: var(--grain);
-  mix-blend-mode: overlay;
+  mix-blend-mode: multiply;
 }
 html[data-tier='low'] #glow,
 html[data-tier='low'] #grade,

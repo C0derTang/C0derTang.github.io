@@ -19,6 +19,7 @@ import {
 } from '../draw'
 import { LAMP } from '../geometry'
 import { makeSvgLayer } from '../layer'
+import { withWrapFace } from '../panorama'
 import type { Layer } from '../types'
 
 /** Near ring of the room on three depths: roof void + beam, doma floor, the two posts. Lit from the lamp on the right. */
@@ -63,10 +64,11 @@ export function interiorFrameLayer(): Layer {
     ${rect(-280, 1040, 2160, 20, v('wood-light'))}
     ${rect(-280, 1060, 2160, 400, 'url(#in-doma)')}`
   const posts = `${post(40)}${post(1496)}`
+  const P = AIR.interiorFrame.parts
   return makeSvgLayer('interior-frame', AIR.interiorFrame, [
-    { part: 'beam', inner: beam },
-    { part: 'doma', inner: doma },
-    { part: 'posts', inner: posts },
+    { part: 'beam', inner: withWrapFace('f0-frame-beam', P.beam.depth, beam) },
+    { part: 'doma', inner: withWrapFace('f0-frame-doma', P.doma.depth, doma) },
+    { part: 'posts', inner: withWrapFace('f0-frame-posts', P.posts.depth, posts) },
   ])
 }
 
@@ -217,10 +219,11 @@ export function interiorRoomLayer(): Layer {
     </g>
     ${rect(1000, 950, 150, 50, v('indigo-cloth'), 'rx="8"')}
     ${rect(1000, 950, 150, 50, 'none', `rx="8" stroke="#55628a" stroke-width="2"`)}`
+  const P = AIR.interiorRoom.parts
   return makeSvgLayer('interior-room', AIR.interiorRoom, [
-    { part: 'wall', inner: wall },
-    { part: 'tatami', inner: tatami },
-    { part: 'hearth', inner: hearth },
+    { part: 'wall', inner: withWrapFace('f0-room-wall', P.wall.depth, wall) },
+    { part: 'tatami', inner: withWrapFace('f0-room-tatami', P.tatami.depth, tatami) },
+    { part: 'hearth', inner: withWrapFace('f0-room-hearth', P.hearth.depth, hearth) },
   ])
 }
 
@@ -271,7 +274,7 @@ export function interiorPropsLayer(quality: Quality): Layer {
   const layer = makeSvgLayer(
     'interior-props',
     { ...AIR.interiorProps, live: !quality.reducedMotion },
-    inner,
+    withWrapFace('f0-props', AIR.interiorProps.depth, inner),
   )
   if (!quality.reducedMotion) {
     const core = layer.el.querySelector('.lamp-core')

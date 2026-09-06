@@ -36,6 +36,17 @@ export function openingRect(doors: number): Rect {
   return { x: 800 - half, y: SHOJI.opening.y, w: half * 2, h: SHOJI.opening.h }
 }
 
+/**
+ * Openings onto the rain seen from inside during the turn, in face-local design px on the
+ * room-wall plane (interior restCz 1000). Face 1 = right wall (kitchen window), 2 = the front
+ * wall from inside (the entrance), 3 = left wall (window). The interior art draws to these.
+ */
+export const FACE_WINDOWS = [
+  { face: 1, rect: { x: 1120, y: 440, w: 140, h: 120 } },
+  { face: 2, rect: { x: 560, y: 420, w: 480, h: 400 } },
+  { face: 3, rect: { x: 640, y: 420, w: 320, h: 260 } },
+] as const
+
 export const PADDY = {
   horizonY: 700,
   water: [

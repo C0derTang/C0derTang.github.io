@@ -2,9 +2,10 @@ import { BEATS, BEAT_IDS, SLOTS, beatAt, local, type BeatId, type SlotId } from 
 import { AIR } from '../config/layers'
 import type { Quality } from '../config/quality'
 import { gradeAt } from '../fx/grade'
-import { easeInOutCubic, easeInOutSine, easeOutCubic, lerp, smoothstep } from '../util/math'
+import { clamp, easeInOutCubic, easeInOutSine, easeOutCubic, lerp, smoothstep } from '../util/math'
 import { camera, designRectToScreen, designToScreen, project } from './camera'
-import { DOORWAY, HOUSE, LAMP, PADDY, SHOJI, openingRect } from './geometry'
+import { DOORWAY, FACE_WINDOWS, HOUSE, LAMP, PADDY, SHOJI, openingRect } from './geometry'
+import { FACE, PAN, faceOffset, panFaces, yawOf } from './panorama'
 import type { Cam, Pt, Rect, SceneState, StageSize } from './types'
 
 const slotOpacity = (t: number, w: readonly [number, number, number, number]): number =>
@@ -20,6 +21,8 @@ export function computeState(
   dt: number,
   size: StageSize,
   quality: Quality,
+  /** scroll velocity in t per second (0 when frozen) */
+  scrollVel = 0,
 ): SceneState {
   const beat = beatAt(t)
   const u = {} as Record<BeatId, number>
@@ -33,7 +36,10 @@ export function computeState(
   if (quality.reducedMotion) {
     // Stills: hold each beat's end camera; boundaries fade through dark (see grade below).
     const [, end] = BEATS[beat]
-    cam = camera(beat === 'exterior' ? 0.04 : Math.min(end, 0.74), true)
+    cam = camera(
+      beat === 'exterior' ? 0.04 : beat === 'turn' ? 0.405 : Math.min(end, BEATS.paddy[1]),
+      true,
+    )
     doors = t >= BEATS.doors[0] + 0.02 ? 1 : 0
   }
 
@@ -42,6 +48,11 @@ export function computeState(
   const sinkTy = lerp(0.35 * H, 0, easeOutCubic(uDive))
   const airVisible = wl > -0.1 * H + 0.5
   const waterVisible = uDive > 0
+  const pan = panFaces(t)
+  const yaw = yawOf(pan)
+  const yawRad = (yaw * Math.PI) / 180
+  // Past face 2 the nearest back wall is the face-4 copy: project it with the wrapped cx.
+  const wrapCam = pan >= 2 ? { ...cam, cx: cam.cx - PAN.faces * FACE } : cam
 
   // Rain: outside = follows the front wall; inside = through openings; paddy = full.
   const houseP = project(AIR.house, cam, size.unit)
@@ -67,27 +78,52 @@ export function computeState(
       eave = { x0: e0.x, x1: e1.x, y: e0.y }
     }
   } else if (shojiVisible && shojiP.opacity > 0.5) {
-    // Under the eave and inside: rain is only seen through the back-wall openings, and as
-    // shadows running down the paper on either side of the gap.
+    // Under the eave and inside: rain is only seen through the openings of whichever face the
+    // camera looks at (shoji gap and side window on the back wall, the windows and the entrance
+    // on the other faces), and as shadows running down the back-wall paper.
     rainAlpha = 1
+    const shojiW = pan >= 2 ? project(AIR.shoji, wrapCam, size.unit) : shojiP
     const gap = openingRect(doors)
     rainClip = [
-      designRectToScreen(gap, shojiP, size),
-      designRectToScreen(SHOJI.sideWindow, shojiP, size),
+      designRectToScreen(gap, shojiW, size),
+      designRectToScreen(SHOJI.sideWindow, shojiW, size),
     ]
-    const y = SHOJI.y
-    const h = SHOJI.panelH
-    paperClip = [
-      designRectToScreen({ x: SHOJI.x0, y, w: gap.x - SHOJI.x0, h }, shojiP, size),
-      designRectToScreen(
-        { x: gap.x + gap.w, y, w: SHOJI.x0 + 4 * SHOJI.panelW - gap.x - gap.w, h },
-        shojiP,
-        size,
-      ),
-    ]
+    if (pan > 0) {
+      const wallDepth = AIR.interiorRoom.parts.wall.depth
+      const wallP = project({ depth: wallDepth, restCz: AIR.interiorRoom.restCz }, cam, size.unit)
+      for (const w of FACE_WINDOWS)
+        rainClip.push(
+          designRectToScreen(
+            { ...w.rect, x: w.rect.x + faceOffset(w.face, wallDepth) },
+            wallP,
+            size,
+          ),
+        )
+    }
+    const facingBack = Math.abs(((yaw + 180) % 360) - 180) < 50
+    if (facingBack) {
+      const y = SHOJI.y
+      const h = SHOJI.panelH
+      paperClip = [
+        designRectToScreen({ x: SHOJI.x0, y, w: gap.x - SHOJI.x0, h }, shojiW, size),
+        designRectToScreen(
+          { x: gap.x + gap.w, y, w: SHOJI.x0 + 4 * SHOJI.panelW - gap.x - gap.w, h },
+          shojiW,
+          size,
+        ),
+      ]
+    }
   } else {
     rainAlpha = 1
   }
+
+  // Apparent rain: scrolling toward the rain hurries and stretches it; the fixed world wind
+  // (from the left of the exterior view) slants it by the view yaw during the turn.
+  const dcz =
+    (camera(Math.min(1, t + 1e-3), true).cz - camera(Math.max(0, t - 1e-3), true).cz) / 2e-3
+  const czRate = Math.abs(scrollVel * dcz)
+  const rainSpeed = 1 + clamp(czRate / 600, 0, 1.5) + 0.2 * Math.abs(Math.sin(yawRad))
+  const rainSlant = Math.cos(yawRad)
 
   // Ripples on the paddy water (only once the paddy layers exist and the air stage shows).
   const paddyP = project(AIR.paddyPlane, cam, size.unit)
@@ -102,14 +138,14 @@ export function computeState(
 
   // Grade + glow position.
   const grade = gradeAt(t)
-  if (t < 0.52) {
-    const roomP = project(AIR.interiorRoom, cam, size.unit)
+  if (t < BEATS.doors[1]) {
+    const roomP = project(AIR.interiorRoom, wrapCam, size.unit)
     if (!roomP.hidden) {
       const lp = designToScreen(LAMP, roomP, size)
       grade.glowX = lp.x / size.w
       grade.glowY = lp.y / size.h
     }
-  } else if (t < 0.74) {
+  } else if (t < BEATS.dive[0]) {
     grade.glowX = size.vx / size.w
     grade.glowY = size.vy / size.h
   } else {
@@ -141,7 +177,15 @@ export function computeState(
     cam,
     waterCam: { cz: lerp(0, 150, uw), cx: 0, cy: 0 },
     doors,
-    rain: { alpha: rainAlpha, clip: rainClip, groundY, eave, paperClip },
+    rain: {
+      alpha: rainAlpha,
+      clip: rainClip,
+      groundY,
+      eave,
+      paperClip,
+      speed: rainSpeed,
+      slant: rainSlant,
+    },
     ripples: { strength: rippleStrength, horizonY, polygon, clip: rainClip },
     wl,
     sinkTy,
@@ -153,7 +197,8 @@ export function computeState(
       fishReveal: [smoothstep(0.0, 0.3, uw), smoothstep(0.15, 0.5, uw)],
     },
     grade,
-    sunX: lerp(28, 72, smoothstep(0.3, 0.5, t)),
+    pan,
+    yaw,
     slots,
     hint: 1 - smoothstep(0.03, 0.05, t),
     reduced: quality.reducedMotion,

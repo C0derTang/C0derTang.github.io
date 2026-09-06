@@ -14,6 +14,7 @@ import {
 } from '../draw'
 import { SHOJI } from '../geometry'
 import { makeSvgLayer } from '../layer'
+import { withWrapFace } from '../panorama'
 import type { Layer } from '../types'
 import { attrWrite } from '../../util/dom'
 
@@ -102,7 +103,7 @@ export function shojiLayer(): Layer {
     ${rect(S.x0 - 14, S.y - 20, 14, S.panelH + 32, v('wood-dark'))}
     ${rect(S.x0 + 4 * S.panelW, S.y - 20, 14, S.panelH + 32, v('wood-dark'))}`
 
-  const layer = makeSvgLayer('shoji', AIR.shoji, inner)
+  const layer = makeSvgLayer('shoji', AIR.shoji, withWrapFace('f0-shoji', AIR.shoji.depth, inner))
   const p1 = layer.el.querySelector('.p1')
   const p2 = layer.el.querySelector('.p2')
   const coolStops = layer.el.querySelectorAll('#in-paperCool stop')

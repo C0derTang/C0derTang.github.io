@@ -536,7 +536,7 @@ export function texRect(
   th = tw,
 ): string {
   if (TEX.level === 'off') return ''
-  if (TEX.level === 'small' && (id === 'plaster' || id === 'water')) return ''
+  if (TEX.level === 'small' && (id === 'plaster' || id === 'water' || id === 'wash')) return ''
   if (TEX.single)
     return `<g class="tex"><image data-tex="${id}" x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="none" opacity="${opacity}"/></g>`
   let out = ''
@@ -557,3 +557,598 @@ export const textured = (
   tex
     ? `<clipPath id="${clipId}">${shape('none')}</clipPath>${shape(fill)}<g clip-path="url(#${clipId})">${tex}</g>`
     : shape(fill)
+
+/* ---------- ink and wash (brush pass) ---------- */
+
+/** Module-level detail multiplier (quality.detail), set in main.ts before layers are built. */
+export const INK = { detail: 1 }
+
+export interface BrushOpts {
+  /** peak width in design px */
+  w: number
+  /** end widths as fractions of w: [start, end] (0 = needle tip) */
+  taper?: readonly [number, number]
+  /** where the width peaks along the stroke (0..1) */
+  peak?: number
+  /** lateral hand tremor amplitude in px */
+  wobble?: number
+  seed: number
+  color?: string
+  opacity?: number
+  /** closed silhouette: the stroke returns to its first point (gentle pressure changes, no tips) */
+  close?: boolean
+  extra?: string
+}
+
+/** Catmull-Rom curve through the points, sampled about every `step` px (>= 2 samples per segment). */
+function smoothPolyline(pts: readonly P2[], close: boolean, step: number): P2[] {
+  const n = pts.length
+  const get = (i: number): P2 => {
+    const j = close ? ((i % n) + n) % n : Math.min(n - 1, Math.max(0, i))
+    return pts[j] ?? [0, 0]
+  }
+  const out: P2[] = []
+  const segs = close ? n : n - 1
+  for (let i = 0; i < segs; i++) {
+    const p0 = get(i - 1)
+    const p1 = get(i)
+    const p2 = get(i + 1)
+    const p3 = get(i + 2)
+    const len = Math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+    const m = Math.max(2, Math.ceil(len / step))
+    for (let k = 0; k < m; k++) {
+      const u = k / m
+      const u2 = u * u
+      const u3 = u2 * u
+      out.push([
+        0.5 *
+          (2 * p1[0] +
+            (-p0[0] + p2[0]) * u +
+            (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * u2 +
+            (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * u3),
+        0.5 *
+          (2 * p1[1] +
+            (-p0[1] + p2[1]) * u +
+            (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * u2 +
+            (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * u3),
+      ])
+    }
+  }
+  out.push(close ? get(0) : get(n - 1))
+  return out
+}
+
+/**
+ * Tapered brush stroke: one filled outline polygon around a smoothed polyline whose width
+ * swells toward `peak` and thins to the tips, with a seeded low-frequency tremor. The ink look
+ * comes from these, never from uniform `stroke-width` outlines.
+ */
+export function brush(pts: readonly P2[], o: BrushOpts): string {
+  if (pts.length < 2) return ''
+  const close = o.close ?? false
+  const rnd = mulberry32(o.seed)
+  const samples = smoothPolyline(pts, close, 7)
+  const n = samples.length
+  const cum = new Float64Array(n)
+  for (let i = 1; i < n; i++) {
+    const a = samples[i - 1] ?? [0, 0]
+    const b = samples[i] ?? [0, 0]
+    cum[i] = (cum[i - 1] ?? 0) + Math.hypot(b[0] - a[0], b[1] - a[1])
+  }
+  const last = cum[n - 1] ?? 0
+  const total = last > 0 ? last : 1
+  const [t0, t1] = o.taper ?? [0.05, 0.02]
+  const peak = o.peak ?? 0.45
+  const wob = o.wobble ?? 0
+  const noise = new Float64Array(n)
+  let acc = 0
+  for (let i = 0; i < n; i++) {
+    acc = (acc + (rnd() - 0.5) * 0.6) * 0.82
+    noise[i] = acc
+  }
+  const L: string[] = []
+  const R: string[] = []
+  for (let i = 0; i < n; i++) {
+    const p = samples[i] ?? [0, 0]
+    const q = samples[Math.min(n - 1, i + 1)] ?? p
+    const r = samples[Math.max(0, i - 1)] ?? p
+    let dx = q[0] - r[0]
+    let dy = q[1] - r[1]
+    const m = Math.hypot(dx, dy) || 1
+    dx /= m
+    dy /= m
+    const u = (cum[i] ?? 0) / total
+    let width: number
+    if (close) {
+      width = o.w * (0.72 + 0.28 * Math.sin(u * Math.PI * 4 + o.seed))
+    } else {
+      const up =
+        u < peak
+          ? (0.5 * u) / Math.max(1e-6, peak)
+          : 0.5 + (0.5 * (u - peak)) / Math.max(1e-6, 1 - peak)
+      const prof = Math.sin(Math.PI * up) ** 0.7
+      const tip = t0 + (t1 - t0) * u
+      width = o.w * (tip + (1 - tip) * prof)
+    }
+    const off = (noise[i] ?? 0) * wob
+    const cx = p[0] - dy * off
+    const cy = p[1] + dx * off
+    const hw = width / 2
+    L.push(`${f(cx - dy * hw)} ${f(cy + dx * hw)}`)
+    R.push(`${f(cx + dy * hw)} ${f(cy - dx * hw)}`)
+  }
+  const d = `M${L.join('L')}L${R.reverse().join('L')}Z`
+  const fill = o.color ?? v('ink')
+  const op = o.opacity === undefined ? '' : ` fill-opacity="${f(o.opacity)}"`
+  return `<path d="${d}" fill="${fill}"${op} ${o.extra ?? ''}/>`
+}
+
+/** Closed brush silhouette (no tips). */
+export const contour = (
+  pts: readonly P2[],
+  w: number,
+  seed: number,
+  color?: string,
+  opacity?: number,
+): string => brush(pts, { w, seed, close: true, wobble: 1.5, color, opacity })
+
+/** One short tapered mark (thatch strand, weave, needle, spoke): a six-point quad. */
+export function hatch(
+  x: number,
+  y: number,
+  len: number,
+  angle: number,
+  w: number,
+  color = v('ink'),
+  opacity = 0.85,
+): string {
+  const dx = Math.cos(angle)
+  const dy = Math.sin(angle)
+  const nx = -dy
+  const ny = dx
+  const w0 = w * 0.25
+  const w1 = w * 0.5
+  const w2 = w * 0.12
+  const mx = x + dx * len * 0.45
+  const my = y + dy * len * 0.45
+  const ex = x + dx * len
+  const ey = y + dy * len
+  return `<polygon points="${f(x + nx * w0)},${f(y + ny * w0)} ${f(mx + nx * w1)},${f(my + ny * w1)} ${f(ex + nx * w2)},${f(ey + ny * w2)} ${f(ex - nx * w2)},${f(ey - ny * w2)} ${f(mx - nx * w1)},${f(my - ny * w1)} ${f(x - nx * w0)},${f(y - ny * w0)}" fill="${color}" fill-opacity="${f(opacity)}"/>`
+}
+
+/** `count` hatch marks scattered over a rect with angle and length jitter (scale count by quality.detail). */
+export function hatchField(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  count: number,
+  angle: number,
+  len: number,
+  seed: number,
+  o: { w?: number; color?: string; opacity?: number; jitter?: number; lenJitter?: number } = {},
+): string {
+  const rnd = mulberry32(seed)
+  const n = Math.round(count)
+  let out = ''
+  for (let i = 0; i < n; i++) {
+    const a = angle + (rnd() - 0.5) * (o.jitter ?? 0.2)
+    const l = len * (1 - (o.lenJitter ?? 0.4) * rnd())
+    out += hatch(x + rnd() * w, y + rnd() * h, l, a, o.w ?? 1.4, o.color, o.opacity)
+  }
+  return out
+}
+
+export interface WashOpts {
+  opacity?: number
+  /** pigment pooling at the edge: rim stroke width in px (0 = none) */
+  rim?: number
+  rimOpacity?: number
+  /** edge wobble amplitude */
+  amp?: number
+  seed: number
+  /** a lighter (or darker) bloom inside the wash, scaled about the centroid and offset */
+  bloom?: { color: string; scale?: number; opacity?: number; dx?: number; dy?: number }
+  extra?: string
+}
+
+/**
+ * Watercolour wash: a wobbly translucent polygon with a pooled rim and an optional bloom.
+ * Offset washes a few px from their ink so colour bleeds past the line and leaves paper gaps.
+ */
+export function wash(pts: readonly P2[], color: string, o: WashOpts): string {
+  if (pts.length < 3) return ''
+  const amp = o.amp ?? 6
+  const rim = o.rim ?? 1.2
+  const stroke =
+    rim > 0
+      ? ` stroke="${color}" stroke-opacity="${f(o.rimOpacity ?? 0.35)}" stroke-width="${f(rim)}" stroke-linejoin="round"`
+      : ''
+  let out = `<path d="${wobbly(pts, amp, o.seed)}" fill="${color}" fill-opacity="${f(o.opacity ?? 0.55)}"${stroke} ${o.extra ?? ''}/>`
+  const b = o.bloom
+  if (b) {
+    const s = b.scale ?? 0.6
+    let cx = 0
+    let cy = 0
+    for (const p of pts) {
+      cx += p[0]
+      cy += p[1]
+    }
+    cx /= pts.length
+    cy /= pts.length
+    const inner: P2[] = pts.map(([px, py]) => [
+      cx + (px - cx) * s + (b.dx ?? 0),
+      cy + (py - cy) * s + (b.dy ?? 0),
+    ])
+    out += `<path d="${wobbly(inner, amp * s, o.seed + 1)}" fill="${b.color}" fill-opacity="${f(b.opacity ?? 0.45)}"/>`
+  }
+  return out
+}
+
+/** Eight-point wash over a rect (corners and edge midpoints wobble independently). */
+export const washRect = (
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: string,
+  o: WashOpts,
+): string =>
+  wash(
+    [
+      [x, y],
+      [x + w / 2, y],
+      [x + w, y],
+      [x + w, y + h / 2],
+      [x + w, y + h],
+      [x + w / 2, y + h],
+      [x, y + h],
+      [x, y + h / 2],
+    ],
+    color,
+    o,
+  )
+
+/** Large wash with the granulation tile clipped to its rect (sky bands, mountains, water, walls). */
+export function granulated(
+  clipId: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: string,
+  o: WashOpts & { grain?: number },
+): string {
+  const body = washRect(x, y, w, h, color, o)
+  const tex = texRect('wash', x, y, w, h, 256, o.grain ?? 0.35)
+  return tex
+    ? `${body}<clipPath id="${clipId}">${rect(x, y, w, h, 'none')}</clipPath><g clip-path="url(#${clipId})">${tex}</g>`
+    : body
+}
+
+/** Points around an ellipse (for washes and contours). */
+export function ellipsePts(cx: number, cy: number, rx: number, ry: number, n = 8, phase = 0): P2[] {
+  const pts: P2[] = []
+  for (let k = 0; k < n; k++) {
+    const a = phase + (k / n) * Math.PI * 2
+    pts.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry])
+  }
+  return pts
+}
+
+/** Ink weight and tone by plane depth (design px at s = 1): heavy black near, thin grey far. */
+export interface InkStyle {
+  w: number
+  color: string
+  opacity: number
+}
+export function inkStyle(depth: number): InkStyle {
+  if (depth <= 0) return { w: 6, color: v('ink'), opacity: 1 }
+  if (depth <= 600) return { w: 4, color: v('ink'), opacity: 1 }
+  if (depth <= 2000) return { w: 3, color: v('ink'), opacity: 1 }
+  if (depth <= 3500) return { w: 2.2, color: v('ink-mid'), opacity: 0.9 }
+  if (depth <= 5000) return { w: 1.6, color: v('ink-mid'), opacity: 0.85 }
+  if (depth <= 9000) return { w: 1.2, color: v('ink-far'), opacity: 0.7 }
+  return { w: 0.9, color: v('ink-far'), opacity: 0.6 }
+}
+
+/* ---------- ink recipes shared by several layers ---------- */
+
+export interface InkRecipeOpts {
+  ink?: InkStyle
+  /** multiplier for detail marks (quality.detail) */
+  detail?: number
+}
+
+/**
+ * Sugi cedar in ink: each bough tier is a green wash (offset down-right so it bleeds past the
+ * line), one open tapered stroke for the hem-crown-hem silhouette, and needle marks along the
+ * hem; the trunk is a wood wash between two edge strokes. ~70 elements at detail 1.
+ */
+export function inkCedar(
+  x: number,
+  baseY: number,
+  scale: number,
+  seed: number,
+  o: InkRecipeOpts & { tiers?: number; wash?: string; wash2?: string; trunk?: string } = {},
+): string {
+  const rnd = mulberry32(seed)
+  const ink = o.ink ?? inkStyle(0)
+  const detail = o.detail ?? 1
+  const tiers = o.tiers ?? 6
+  const trunkH = 150 * scale
+  const tierH = 105 * scale
+  let top = baseY - trunkH + 34 * scale
+  let washes = ''
+  let lines = ''
+  let marks = ''
+  for (let i = 0; i < tiers; i++) {
+    const tw = (300 - 36 * i) * scale
+    const last = i === tiers - 1
+    const yb = top
+    const yt = top - tierH - (last ? 50 * scale : 0)
+    const droop = (16 + rnd() * 10) * scale
+    const pts: P2[] = [
+      [x - tw / 2, yb + droop],
+      [x - tw * 0.28, yb - tierH * 0.3],
+      [x, yt],
+      [x + tw * 0.28, yb - tierH * 0.3],
+      [x + tw / 2, yb + droop],
+    ]
+    const wc = i % 2 ? (o.wash2 ?? v('cedar-wash-2')) : (o.wash ?? v('cedar-wash'))
+    washes += wash(
+      [
+        [x - tw / 2 + 8 * scale, yb + droop + 6 * scale],
+        [x - tw * 0.3, yb - tierH * 0.25],
+        [x + 4 * scale, yt + 10 * scale],
+        [x + tw * 0.3, yb - tierH * 0.25],
+        [x + tw / 2 + 8 * scale, yb + droop + 6 * scale],
+        [x, yb + droop * 0.9 + 6 * scale],
+      ],
+      wc,
+      { seed: seed + 40 + i, amp: 8 * scale, opacity: 0.6, rim: 1 },
+    )
+    lines += brush(pts, {
+      w: ink.w * (last ? 0.8 : 1),
+      seed: seed + i * 7,
+      wobble: 2.5 * scale,
+      color: ink.color,
+      opacity: ink.opacity,
+      taper: [0.1, 0.1],
+      peak: 0.5,
+    })
+    const nm = Math.round(9 * detail)
+    for (let k = 0; k < nm; k++) {
+      const u = (k + 0.5) / nm
+      const hx = x - tw / 2 + tw * u
+      const hy = yb + droop * (1 - Math.abs(u - 0.5) * 1.6) - 4 * scale
+      marks += hatch(
+        hx,
+        hy,
+        (14 + rnd() * 10) * scale,
+        Math.PI / 2 + (rnd() - 0.5) * 0.7,
+        ink.w * 0.5,
+        ink.color,
+        0.7 * ink.opacity,
+      )
+    }
+    top = yt + 42 * scale
+  }
+  const tw = 22 * scale
+  const trunk =
+    washRect(x - tw / 2, baseY - trunkH, tw, trunkH, o.trunk ?? v('wood-wash-dark'), {
+      seed: seed + 98,
+      amp: 3 * scale,
+      opacity: 0.6,
+      rim: 0,
+    }) +
+    brush(
+      [
+        [x - tw / 2, baseY - trunkH],
+        [x - tw / 2 - 2 * scale, baseY],
+      ],
+      {
+        w: ink.w * 0.9,
+        seed: seed + 99,
+        wobble: 1.5 * scale,
+        color: ink.color,
+        opacity: ink.opacity,
+      },
+    ) +
+    brush(
+      [
+        [x + tw / 2, baseY - trunkH],
+        [x + tw / 2 + 3 * scale, baseY],
+      ],
+      {
+        w: ink.w * 0.7,
+        seed: seed + 100,
+        wobble: 1.5 * scale,
+        color: ink.color,
+        opacity: ink.opacity,
+      },
+    )
+  return `<g class="cedar">${washes}${trunk}${lines}${marks}</g>`
+}
+
+/** Broadleaf mass in ink: wash blob, a closed contour, three interior strokes, leaf marks. */
+export function inkFoliage(
+  x: number,
+  y: number,
+  w: number,
+  seed: number,
+  o: InkRecipeOpts & { wash?: string } = {},
+): string {
+  const rnd = mulberry32(seed)
+  const ink = o.ink ?? inkStyle(0)
+  const detail = o.detail ?? 1
+  const pts = ellipsePts(x, y, w * 0.5, w * 0.32, 9, rnd())
+  let out = wash(
+    ellipsePts(x + w * 0.06, y + w * 0.05, w * 0.5, w * 0.32, 9, rnd()),
+    o.wash ?? v('hedge'),
+    { seed: seed + 1, amp: w * 0.06, opacity: 0.6, rim: 1 },
+  )
+  out += contour(pts, ink.w, seed + 2, ink.color, ink.opacity)
+  for (let i = 0; i < 3; i++) {
+    const a = rnd() * Math.PI
+    const r = w * (0.12 + rnd() * 0.2)
+    const cx = x + (rnd() - 0.5) * w * 0.5
+    const cy = y + (rnd() - 0.5) * w * 0.3
+    out += brush(
+      [
+        [cx - Math.cos(a) * r, cy - Math.sin(a) * r],
+        [cx + (rnd() - 0.5) * r, cy + (rnd() - 0.5) * r],
+        [cx + Math.cos(a) * r, cy + Math.sin(a) * r],
+      ],
+      { w: ink.w * 0.6, seed: seed + 10 + i, wobble: 1, color: ink.color, opacity: ink.opacity },
+    )
+  }
+  const nm = Math.round(6 * detail)
+  for (let k = 0; k < nm; k++)
+    out += hatch(
+      x + (rnd() - 0.5) * w * 0.8,
+      y + (rnd() - 0.5) * w * 0.5,
+      w * 0.08,
+      rnd() * Math.PI,
+      ink.w * 0.45,
+      ink.color,
+      0.6 * ink.opacity,
+    )
+  return `<g class="foliage">${out}</g>`
+}
+
+/**
+ * Hydrangea head: a coloured wash with a pale bloom, `florets` four-petal marks (a tiny wash
+ * plus two crossing ink flicks each) and, unless disabled, three serrated leaves below.
+ */
+export function inkHydrangea(
+  x: number,
+  y: number,
+  r: number,
+  seed: number,
+  o: InkRecipeOpts & { color?: string; florets?: number; leaves?: boolean; leaf?: string } = {},
+): string {
+  const rnd = mulberry32(seed)
+  const ink = o.ink ?? inkStyle(100)
+  const color = o.color ?? v('hydrangea-blue')
+  const n = Math.round((o.florets ?? 12) * Math.max(0.5, o.detail ?? 1))
+  let out = wash(ellipsePts(x, y, r, r * 0.85, 8, rnd()), color, {
+    seed,
+    amp: r * 0.18,
+    opacity: 0.5,
+    rim: 1,
+    bloom: { color: '#ffffff', scale: 0.5, opacity: 0.25, dx: -r * 0.15, dy: -r * 0.15 },
+  })
+  for (let i = 0; i < n; i++) {
+    const a = rnd() * Math.PI * 2
+    const d = Math.sqrt(rnd()) * r * 0.8
+    const fx = x + Math.cos(a) * d
+    const fy = y + Math.sin(a) * d * 0.8
+    const fr = r * (0.16 + rnd() * 0.1)
+    out += wash(ellipsePts(fx, fy, fr, fr, 4, rnd() * Math.PI), color, {
+      seed: seed + i,
+      amp: fr * 0.4,
+      opacity: 0.45,
+      rim: 0.8,
+    })
+    out +=
+      hatch(fx - fr, fy, fr * 2, (rnd() - 0.5) * 0.5, ink.w * 0.5, ink.color, 0.7 * ink.opacity) +
+      hatch(
+        fx,
+        fy - fr,
+        fr * 2,
+        Math.PI / 2 + (rnd() - 0.5) * 0.5,
+        ink.w * 0.5,
+        ink.color,
+        0.7 * ink.opacity,
+      )
+  }
+  if (o.leaves !== false) {
+    for (let i = 0; i < 3; i++) {
+      const lx = x + (i - 1) * r * 0.9 + (rnd() - 0.5) * r * 0.3
+      const ly = y + r * 0.95 + rnd() * r * 0.2
+      const lw = r * (0.55 + rnd() * 0.25)
+      const tilt = (i - 1) * 0.5 + (rnd() - 0.5) * 0.4
+      const leaf: P2[] = [
+        [lx, ly - lw * 0.1],
+        [lx + Math.cos(tilt + 0.9) * lw * 0.5, ly + Math.sin(tilt + 0.9) * lw * 0.5],
+        [lx + Math.cos(tilt + 1.57) * lw, ly + Math.sin(tilt + 1.57) * lw],
+        [lx + Math.cos(tilt + 2.3) * lw * 0.5, ly + Math.sin(tilt + 2.3) * lw * 0.5],
+      ]
+      out += wash(leaf, o.leaf ?? v('leaf'), {
+        seed: seed + 50 + i,
+        amp: lw * 0.08,
+        opacity: 0.55,
+        rim: 1,
+      })
+      out += brush(leaf, {
+        w: ink.w * 0.7,
+        seed: seed + 60 + i,
+        wobble: 1,
+        close: true,
+        color: ink.color,
+        opacity: ink.opacity,
+      })
+      const tip = leaf[2] ?? [lx, ly]
+      out += brush([[lx, ly], [(lx + tip[0]) / 2, (ly + tip[1]) / 2 + 2], tip], {
+        w: ink.w * 0.4,
+        seed: seed + 70 + i,
+        color: ink.color,
+        opacity: ink.opacity * 0.8,
+      })
+    }
+  }
+  return `<g class="hydrangea">${out}</g>`
+}
+
+/** Dry-stone retaining wall: a grey wash, then `rows` courses of wobbly ink stones with a few paler ones. */
+export function inkStoneWall(
+  x0: number,
+  x1: number,
+  y: number,
+  h: number,
+  seed: number,
+  o: InkRecipeOpts & { rows?: number; wash?: string } = {},
+): string {
+  const rnd = mulberry32(seed)
+  const ink = o.ink ?? inkStyle(3000)
+  const detail = o.detail ?? 1
+  const rows = o.rows ?? 3
+  const rowH = h / rows
+  let out = washRect(x0, y, x1 - x0, h, o.wash ?? v('stone-wall'), {
+    seed,
+    amp: 3,
+    opacity: 0.55,
+    rim: 1,
+  })
+  for (let r = 0; r < rows; r++) {
+    let x = x0 - (r % 2) * rowH * 0.6
+    const ry = y + r * rowH
+    while (x < x1) {
+      const sw = rowH * (1.2 + rnd() * 1.2)
+      const pts: P2[] = [
+        [x + 2, ry + 2],
+        [x + sw - 2, ry + 2],
+        [x + sw - 2, ry + rowH - 2],
+        [x + 2, ry + rowH - 2],
+      ]
+      out += brush(pts, {
+        w: ink.w,
+        seed: seed + r * 131 + Math.round(x),
+        wobble: 1.2,
+        close: true,
+        color: ink.color,
+        opacity: ink.opacity,
+      })
+      if (rnd() < 0.5 * detail)
+        out += wash(pts, '#ffffff', {
+          seed: seed + 7 + Math.round(x),
+          amp: 2,
+          opacity: 0.12,
+          rim: 0,
+        })
+      x += sw
+    }
+  }
+  return `<g class="stone-wall">${out}</g>`
+}

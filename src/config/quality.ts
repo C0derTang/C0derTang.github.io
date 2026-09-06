@@ -5,6 +5,8 @@ export interface Quality {
   reducedMotion: boolean
   /** Split layers into nested viewports at different depths (off on the low tier). */
   microParallax: boolean
+  /** Multiplier for ink detail marks (hatching, needles, weave) and rice clumps. */
+  detail: number
 }
 
 /** `?tier=high|low` overrides detection (bench and screenshots on any machine). */
@@ -21,5 +23,6 @@ export function detectQuality(params?: URLSearchParams): Quality {
     particleMul: low ? 0.35 : 1,
     reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
     microParallax: !low,
+    detail: low ? 0.5 : 1,
   }
 }

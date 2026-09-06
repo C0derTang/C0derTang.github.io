@@ -16,7 +16,7 @@ import {
   v,
   wobbly,
 } from '../draw'
-import { fishDefs, fishMarkup, startLane, startRig, type FishSpec } from '../fish'
+import { fishDefs, fishMarkup, startSwim, type FishSpec } from '../fish'
 import { makeSvgLayer } from '../layer'
 import type { Layer } from '../types'
 import { attrWrite } from '../../util/dom'
@@ -203,14 +203,7 @@ function fishLayer(
   const layer = makeSvgLayer(id, { ...opts, live: !quality.reducedMotion }, inner)
   const svgEl = layer.el.querySelector('svg')
   layer.mount = () => {
-    for (const spec of specs) {
-      const mover = layer.el.querySelector(`[data-fish="${spec.id}"]`)
-      const lane = layer.el.querySelector<SVGPathElement>(`[data-lane="${spec.id}"]`)
-      const shadowEl = layer.el.querySelector(`[data-shadow="${spec.id}"]`)
-      if (!mover || !lane) continue
-      startLane(mover, lane, spec, quality.reducedMotion, shadowEl)
-      if (!quality.reducedMotion) startRig(mover, spec.species)
-    }
+    startSwim(layer.el, specs, quality.reducedMotion)
   }
   layer.update = (state) => {
     if (svgEl) attrWrite(svgEl, 'opacity', state.water.fishReveal[which].toFixed(3))
@@ -242,8 +235,10 @@ export function buildWaterLayers(quality: Quality): Layer[] {
             species: 'funa' as const,
             scale: 0.5 + (i % 3) * 0.07,
             lane: LANES.school,
-            duration: 30 + i * 1.5,
-            offset: 0.05 + i * 0.13,
+            duration: 30,
+            offset: 0.3 - i * 0.05,
+            rank: i,
+            ...(i > 0 ? { leader: 'funa0' } : {}),
           })),
           1,
           quality,
