@@ -82,9 +82,9 @@ export function createBubbles(canvas: Canvas2D, quality: Quality): Fx {
       lastTime = time
       const reveal = state.water.fishReveal[0]
 
-      // Marine snow.
+      // Marine snow: tiny ink specks at low alpha (fainter and greyer the larger/further they are).
       for (const s of specks) {
-        ctx.fillStyle = rgba(s.r > 1.8 ? PALETTE.silt : PALETTE.bubbleRim, s.r > 1.8 ? 0.1 : 0.25)
+        ctx.fillStyle = rgba(s.r > 1.8 ? PALETTE.inkFar : PALETTE.ink, s.r > 1.8 ? 0.08 : 0.16)
         if (dt > 0) {
           s.x += s.vx * dt
           s.y += s.vy * dt
@@ -96,26 +96,23 @@ export function createBubbles(canvas: Canvas2D, quality: Quality): Fx {
         ctx.fillRect(s.x, s.y, s.r, s.r)
       }
 
-      // Bubbles.
-      ctx.lineWidth = 1
+      // Bubbles: an ink outline with a small paper-white highlight arc where the light catches it.
       for (const b of bubbles) {
         if (dt > 0) {
           b.y -= b.v * dt
           b.x += Math.sin(time / 600 + b.phase) * 6 * dt
           if (b.y < H * 0.18) spawnBubble(b, false)
         }
-        ctx.strokeStyle = rgba(PALETTE.bubbleRim, 0.6 * reveal)
-        ctx.fillStyle = rgba(PALETTE.bubbleRim, 0.12 * reveal)
+        ctx.lineWidth = 1
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.55 * reveal)
         ctx.beginPath()
         ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2)
-        ctx.fill()
         ctx.stroke()
-        if (b.big) {
-          ctx.fillStyle = rgba('#ffffff', 0.5 * reveal)
-          ctx.beginPath()
-          ctx.arc(b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.22, 0, Math.PI * 2)
-          ctx.fill()
-        }
+        ctx.lineWidth = b.big ? 1.2 : 0.8
+        ctx.strokeStyle = rgba(PALETTE.paper, 0.75 * reveal)
+        ctx.beginPath()
+        ctx.arc(b.x, b.y, b.r * 0.65, Math.PI * 1.05, Math.PI * 1.55)
+        ctx.stroke()
       }
 
       // Rain impacts on the surface, seen from below (ceiling band).
@@ -124,7 +121,7 @@ export function createBubbles(canvas: Canvas2D, quality: Quality): Fx {
         carry -= 1
         impacts.push({ x: rnd() * W, y: H * 0.02 + rnd() * H * 0.16, born: time })
       }
-      ctx.lineWidth = 1.2
+      ctx.lineWidth = 1
       for (let i = impacts.length - 1; i >= 0; i--) {
         const im = impacts[i]
         if (!im) continue
@@ -134,12 +131,12 @@ export function createBubbles(canvas: Canvas2D, quality: Quality): Fx {
           continue
         }
         const r = 4 + 32 * u
-        ctx.strokeStyle = rgba(PALETTE.ripple, 0.5 * (1 - u))
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.4 * (1 - u))
         ctx.beginPath()
         ctx.ellipse(im.x, im.y, r, r / 3, 0, 0, Math.PI * 2)
         ctx.stroke()
         if (u < 0.5) {
-          ctx.fillStyle = rgba(PALETTE.bubbleRim, 0.5 * (1 - u * 2))
+          ctx.fillStyle = rgba(PALETTE.paper, 0.5 * (1 - u * 2))
           for (let k = 0; k < 3; k++) {
             ctx.beginPath()
             ctx.arc(im.x + (k - 1) * 6, im.y + 10 + u * 30 + k * 3, 1.6, 0, Math.PI * 2)

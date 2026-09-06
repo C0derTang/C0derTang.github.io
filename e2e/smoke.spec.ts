@@ -74,6 +74,55 @@ test('plays every beat without console errors', async ({ page }, testInfo) => {
   expect(errors).toEqual([])
 })
 
+test('the turn wraps onto the same pixels', async ({ page }) => {
+  // Face 4 at the end of the pan is a copy of face 0 and cx snaps back to 0: the two frames may
+  // differ only by anti-aliasing.
+  await page.goto('/?freeze')
+  await expect(page.locator('#stage-air')).toBeVisible()
+  await page.waitForTimeout(400)
+  const grab = async (t: number) => {
+    await page.evaluate((frac) => {
+      window.__scene?.seek(frac)
+    }, t)
+    await page.waitForTimeout(200)
+    return (await page.screenshot()).toString('base64')
+  }
+  const a = await grab(0.4995)
+  const b = await grab(0.5)
+  const diff = await page.evaluate(
+    async ([pa, pb]) => {
+      const load = (src: string) =>
+        new Promise<HTMLImageElement>((res) => {
+          const im = new Image()
+          im.onload = () => res(im)
+          im.src = `data:image/png;base64,${src}`
+        })
+      const [ia, ib] = await Promise.all([load(pa ?? ''), load(pb ?? '')])
+      const c = document.createElement('canvas')
+      c.width = ia.width
+      c.height = ia.height
+      const x = c.getContext('2d')
+      if (!x) return { pixels: 1, big: 1 }
+      x.drawImage(ia, 0, 0)
+      const A = x.getImageData(0, 0, c.width, c.height).data
+      x.drawImage(ib, 0, 0)
+      const B = x.getImageData(0, 0, c.width, c.height).data
+      let big = 0
+      for (let i = 0; i < A.length; i += 4) {
+        const d = Math.max(
+          Math.abs((A[i] ?? 0) - (B[i] ?? 0)),
+          Math.abs((A[i + 1] ?? 0) - (B[i + 1] ?? 0)),
+          Math.abs((A[i + 2] ?? 0) - (B[i + 2] ?? 0)),
+        )
+        if (d > 24) big++
+      }
+      return { pixels: c.width * c.height, big }
+    },
+    [a, b],
+  )
+  expect(diff.big / diff.pixels).toBeLessThan(0.002)
+})
+
 test('reads without JavaScript', async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false })
   const page = await context.newPage()

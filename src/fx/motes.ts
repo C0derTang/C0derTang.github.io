@@ -30,7 +30,7 @@ export function createMotes(canvas: Canvas2D, quality: Quality): Fx {
         motes.push({
           x: rnd() * W,
           y: rnd() * H,
-          r: 0.8 + rnd() * 0.8,
+          r: 0.5 + rnd() * 0.5,
           vx: (rnd() - 0.5) * 8,
           vy: (rnd() - 0.5) * 6,
           phase: rnd() * 6.28,
@@ -59,9 +59,9 @@ export function createMotes(canvas: Canvas2D, quality: Quality): Fx {
           if (m.y > H) m.y -= H
         }
         const d = Math.hypot(m.x - gx, m.y - gy)
-        const a = 0.25 * on * (1 - clamp01((d - reach * 0.35) / (reach * 0.25)))
+        const a = 0.16 * on * (1 - clamp01((d - reach * 0.35) / (reach * 0.25)))
         if (a <= 0.01) continue
-        ctx.fillStyle = rgba('#f2b45a', a)
+        ctx.fillStyle = rgba('#f4dba8', a)
         ctx.beginPath()
         ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2)
         ctx.fill()

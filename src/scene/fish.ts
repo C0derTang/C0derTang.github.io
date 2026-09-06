@@ -1,5 +1,5 @@
 import { createTimer } from 'animejs'
-import { circle, ellipse, f, linGrad, path, pivot, radGrad, rect, v } from './draw'
+import { INK, brush, circle, contour, ellipsePts, f, hatch, pivot, v, wash, type P2 } from './draw'
 import { mulberry32 } from '../util/math'
 
 /**
@@ -29,123 +29,351 @@ export interface FishSpec {
 
 const DEFS_ID = 'fish-defs'
 
+// Colour lives in washes now; no gradients are defined for the fish.
 export function fishDefs(prefix: string): string {
-  return `<defs id="${prefix}${DEFS_ID}">
-    ${linGrad(`${prefix}funaBody`, [
-      [0, v('funa-back')],
-      [0.45, v('funa')],
-      [0.8, v('funa-belly')],
-      [1, '#dfe3d2'],
-    ])}
-    ${linGrad(`${prefix}koiWhite`, [
-      [0, v('koi-white-lit')],
-      [0.4, v('koi-white')],
-      [0.75, '#cfc6b6'],
-      [1, v('koi-white-shade')],
-    ])}
-    ${linGrad(`${prefix}koiOrange`, [
-      [0, v('koi-orange-lit')],
-      [0.4, v('koi-orange')],
-      [1, v('koi-orange-deep')],
-    ])}
-    ${linGrad(`${prefix}dojoBody`, [
-      [0, '#6a6650'],
-      [0.5, v('loach')],
-      [1, '#3a3828'],
-    ])}
-    ${radGrad(`${prefix}ao`, [
-      [0, v('uw-abyss'), 0.6],
-      [0.6, v('uw-abyss'), 0.25],
-      [1, v('uw-abyss'), 0],
-    ])}
-  </defs>`
+  return `<defs id="${prefix}${DEFS_ID}"></defs>`
 }
 
-export function koi(variant: KoiVariant = 'kohaku', prefix = ''): string {
-  const body = variant === 'orange' ? `url(#${prefix}koiOrange)` : `url(#${prefix}koiWhite)`
-  const belly = variant === 'orange' ? v('koi-orange-deep') : '#d8cfbe'
+/**
+ * Koi: one long tapered ink line per rig segment (tail, rear, body, pec) that pinches thin at
+ * the seams and swells toward the snout, so the four pivoted pieces read as a single confident
+ * stroke at rest. A paper-white or orange wash carries the colour under the line; kohaku gets
+ * three loose orange patch washes, 'white' a single faint ink patch, 'orange' none (the base
+ * wash already reads solid). Ink-dot eye, one gill hatch, 1-2 scale hatches. ~19-22 elements.
+ */
+export function koi(variant: KoiVariant = 'kohaku'): string {
+  const ink = v('ink')
+  const base = variant === 'orange' ? v('koi-orange-wash') : '#f4f1ea'
+  const bodyLine: P2[] = [
+    [43, 28],
+    [62, 16],
+    [92, 9],
+    [126, 10],
+    [156, 17],
+    [180, 27],
+    [195, 37],
+    [198, 41],
+    [194, 46],
+    [178, 56],
+    [152, 64],
+    [120, 67],
+    [88, 64],
+    [62, 58],
+    [43, 50],
+  ]
+  const bodyWash: P2[] = [
+    [46, 30],
+    [64, 19],
+    [92, 13],
+    [124, 14],
+    [154, 20],
+    [176, 29],
+    [188, 39],
+    [186, 43],
+    [174, 53],
+    [150, 60],
+    [120, 64],
+    [90, 61],
+    [64, 56],
+    [46, 48],
+  ]
   const patches =
     variant === 'kohaku'
-      ? path('M84 20C100 12 124 14 132 24C124 32 100 34 88 30Z', v('koi-orange')) +
-        path('M150 20C166 18 180 26 184 34C170 36 156 32 148 28Z', v('koi-orange'))
+      ? wash(ellipsePts(94, 21, 20, 11, 6, 0.3), v('koi-orange-wash'), {
+          seed: 121,
+          amp: 5,
+          opacity: 0.72,
+          rim: 1,
+        }) +
+        wash(ellipsePts(150, 33, 16, 12, 6, 1.4), v('koi-orange-wash'), {
+          seed: 122,
+          amp: 5,
+          opacity: 0.72,
+          rim: 1,
+        }) +
+        wash(ellipsePts(112, 54, 13, 9, 5, 2.1), v('koi-orange-wash'), {
+          seed: 123,
+          amp: 4,
+          opacity: 0.68,
+          rim: 1,
+        })
       : variant === 'white'
-        ? path('M104 22C118 14 138 16 144 26C134 32 116 34 106 30Z', v('koi-ink'), 'opacity=".85"')
+        ? wash(ellipsePts(128, 26, 15, 10, 8, 0.7), ink, {
+            seed: 124,
+            amp: 5,
+            opacity: 0.28,
+            rim: 0.6,
+          })
         : ''
+  const scaleN = Math.max(1, Math.round(2 * INK.detail))
+  let scaleMarks = ''
+  for (let i = 0; i < scaleN; i++)
+    scaleMarks += hatch(78 + i * 32, 38 + i * 6, 15, 0.2 + i * 0.1, 1.6, ink, 0.5)
+  const bodyGroup =
+    wash(bodyWash, base, {
+      seed: 111,
+      amp: 6,
+      opacity: 0.8,
+      rim: 1.2,
+      bloom: { color: '#ffffff', scale: 0.5, opacity: 0.22, dy: -5 },
+    }) +
+    patches +
+    brush(bodyLine, { w: 4, seed: 112, wobble: 1, taper: [0.2, 0.22], peak: 0.47, color: ink }) +
+    brush(
+      [
+        [92, 11],
+        [106, 3],
+        [124, 6],
+      ],
+      { w: 2, seed: 113, wobble: 0.6, taper: [0.1, 0.1], color: ink, opacity: 0.85 },
+    ) +
+    brush(
+      [
+        [186, 43],
+        [179, 49],
+        [170, 46],
+      ],
+      { w: 1.8, seed: 114, wobble: 0.5, taper: [0.3, 0.15], color: ink, opacity: 0.8 },
+    ) +
+    hatch(168, 31, 13, 1.7, 2, ink, 0.55) +
+    scaleMarks +
+    circle(182, 34, 3.2, ink) +
+    circle(183.2, 32.7, 1, '#fff')
+  const rearLine: P2[] = [
+    [44, 30],
+    [64, 20],
+    [86, 27],
+    [93, 40],
+    [86, 53],
+    [64, 60],
+    [44, 50],
+  ]
+  const rearGroup =
+    wash(rearLine, base, { seed: 131, amp: 5, opacity: 0.68, rim: 1 }) +
+    brush(rearLine, { w: 3.2, seed: 132, wobble: 1, taper: [0.16, 0.16], peak: 0.5, color: ink }) +
+    brush(
+      [
+        [78, 58],
+        [70, 70],
+        [62, 65],
+      ],
+      { w: 1.6, seed: 133, wobble: 0.5, taper: [0.3, 0.06], color: ink, opacity: 0.8 },
+    )
+  const tailGroup =
+    wash(
+      [
+        [46, 30],
+        [10, 12],
+        [2, 40],
+        [10, 68],
+        [46, 50],
+      ],
+      base,
+      { seed: 141, amp: 5, opacity: 0.55, rim: 0.8 },
+    ) +
+    brush(
+      [
+        [45, 31],
+        [26, 20],
+        [10, 10],
+        [3, 6],
+      ],
+      { w: 3.4, seed: 142, wobble: 0.8, taper: [0.4, 0.12], peak: 0.2, color: ink },
+    ) +
+    brush(
+      [
+        [45, 49],
+        [26, 60],
+        [10, 70],
+        [3, 74],
+      ],
+      { w: 3.4, seed: 144, wobble: 0.8, taper: [0.4, 0.12], peak: 0.2, color: ink },
+    )
+  const pecGroup =
+    wash(
+      [
+        [150, 54],
+        [138, 62],
+        [122, 68],
+        [128, 56],
+      ],
+      base,
+      { seed: 151, amp: 3, opacity: 0.5, rim: 0.6 },
+    ) +
+    brush(
+      [
+        [150, 52],
+        [136, 63],
+        [118, 69],
+        [112, 71],
+      ],
+      { w: 2.6, seed: 152, wobble: 0.8, taper: [0.4, 0.05], peak: 0.2, color: ink, opacity: 0.9 },
+    )
   return `<g class="fish koi" data-species="koi">
-    ${pivot(
-      48,
-      40,
-      'rig-tail',
-      path('M48 40C30 22 12 10 4 8C14 28 14 52 4 72C12 70 30 58 48 40Z', body) +
-        path(
-          'M40 40C26 30 16 22 10 18M40 40C26 50 16 58 10 62',
-          'none',
-          `stroke="${v('koi-orange-deep')}" stroke-width="2" opacity=".35"`,
-        ),
-    )}
-    ${pivot(
-      95,
-      40,
-      'rig-rear',
-      path('M95 18C78 20 60 30 44 40C60 50 78 60 95 62Z', body) +
-        path('M86 60C80 70 70 74 66 72C72 66 78 62 84 60Z', body, 'opacity=".85"'),
-    )}
-    ${pivot(
-      120,
-      40,
-      'rig-body',
-      path(
-        'M44 40C70 14 120 10 158 16C178 20 192 30 196 40C192 50 178 60 158 64C120 70 70 66 44 40Z',
-        body,
-      ) +
-        path('M60 46C90 62 140 64 186 46C160 60 100 66 60 46Z', belly, 'opacity=".55"') +
-        patches +
-        path('M96 16C104 4 122 2 138 10C124 10 108 14 96 16Z', body, 'opacity=".9"') +
-        path(
-          'M164 24C158 32 158 48 164 56',
-          'none',
-          `stroke="#c9b9a2" stroke-width="2" opacity=".6"`,
-        ) +
-        circle(178, 34, 4, v('koi-ink')) +
-        circle(179.5, 32.5, 1.4, '#fff'),
-    )}
-    ${pivot(150, 52, 'rig-pec', path('M150 52C144 64 128 70 116 66C126 58 138 54 150 52Z', body, 'opacity=".85"'))}
+    ${pivot(48, 40, 'rig-tail', tailGroup)}
+    ${pivot(95, 40, 'rig-rear', rearGroup)}
+    ${pivot(120, 40, 'rig-body', bodyGroup)}
+    ${pivot(150, 52, 'rig-pec', pecGroup)}
   </g>`
 }
 
-export function dojo(prefix = ''): string {
-  const body = `url(#${prefix}dojoBody)`
-  const speck = (x: number, y: number) => circle(x, y, 1.8, v('loach-spot'))
-  const belly = (x0: number, x1: number) =>
-    rect(x0, 43, x1 - x0, 7, v('loach-belly'), 'rx="3" opacity=".8"')
-  // Head cap, then three overlapping body segments that taper toward a small rounded tail.
+/**
+ * Dojo (weather loach): the four nested segments (head, two body rings, tail) share one wash
+ * tube; only the true ends (snout, tail paddle) close into a full ink silhouette. Each internal
+ * ring is inked as an open top edge + open bottom edge that taper to nothing at both joints, so
+ * neighbouring rings (drawn later, on top, and overlapping generously) bury the fade and the
+ * chain reads as one sinuous line rather than a row of pinched lenses. Muddy-olive wash, two
+ * darker spot washes per ring, a rounded ink-contour tail paddle, two barbel flicks. ~26 elements.
+ */
+export function dojo(): string {
+  const ink = v('ink')
+  const wc = v('loach-wash')
+  const spot = v('loach-spot')
+  const spotN = Math.max(1, Math.round(2 * INK.detail))
+  const speck = (x: number, y: number, r: number, seed: number) =>
+    wash(ellipsePts(x, y, r, r * 0.8, 5, seed), spot, {
+      seed,
+      amp: r * 0.3,
+      opacity: 0.6,
+      rim: 0.5,
+    })
+  const headLine: P2[] = [
+    [134, 28],
+    [152, 25],
+    [172, 25],
+    [188, 29],
+    [196, 34],
+    [200, 40],
+    [196, 46],
+    [188, 51],
+    [172, 55],
+    [152, 55],
+    [134, 52],
+  ]
   const head =
-    path('M150 24C170 22 186 24 194 32C199 37 199 43 194 48C186 56 170 58 150 56Z', body) +
-    belly(152, 190) +
-    circle(184, 34, 2.5, v('koi-ink')) +
-    path(
-      'M196 40l12-8M197 42l14 0M196 44l12 8M190 48l6 12M190 32l6-12M187 46l-1 12',
-      'none',
-      `stroke="${v('loach-belly')}" stroke-width="1.5" stroke-linecap="round" opacity=".9"`,
+    wash(headLine, wc, {
+      seed: 211,
+      amp: 4,
+      opacity: 0.75,
+      rim: 1,
+      bloom: { color: '#cbc39f', scale: 0.5, opacity: 0.3, dy: 6 },
+    }) +
+    brush(headLine, { w: 4.4, seed: 212, wobble: 1, taper: [0.22, 0.22], peak: 0.5, color: ink }) +
+    brush(
+      [
+        [197, 44],
+        [204, 50],
+        [208, 55],
+      ],
+      { w: 1.2, seed: 213, wobble: 0.4, taper: [0.5, 0.03], color: ink, opacity: 0.85 },
     ) +
-    speck(160, 31) +
-    speck(174, 30)
-  const seg2 =
-    path('M98 26C116 22 140 22 158 26L158 54C140 58 116 58 98 54Z', body) +
-    belly(100, 156) +
-    path('M110 26C118 17 134 17 142 26Z', v('loach-belly'), 'opacity=".9"') +
-    speck(118, 31) +
-    speck(134, 35) +
-    speck(108, 38)
-  const seg3 =
-    path('M48 29C66 25 90 25 106 27L106 53C90 55 66 55 48 51Z', body) +
-    belly(50, 104) +
-    speck(64, 33) +
-    speck(84, 30)
+    brush(
+      [
+        [194, 47],
+        [198, 55],
+        [199, 61],
+      ],
+      { w: 1.2, seed: 214, wobble: 0.4, taper: [0.5, 0.03], color: ink, opacity: 0.85 },
+    ) +
+    hatch(180, 36, 10, 1.9, 1.8, ink, 0.55) +
+    circle(190, 37, 2, ink) +
+    circle(190.9, 36.2, 0.7, '#fff')
+  const seg2Wash: P2[] = [
+    [86, 29],
+    [104, 26],
+    [124, 26],
+    [142, 28],
+    [153, 31],
+    [153, 49],
+    [142, 52],
+    [124, 54],
+    [104, 54],
+    [86, 51],
+  ]
+  let seg2 =
+    wash(seg2Wash, wc, { seed: 221, amp: 3, opacity: 0.72, rim: 1 }) +
+    brush(
+      [
+        [88, 29],
+        [104, 26],
+        [124, 26],
+        [142, 28],
+        [151, 30],
+      ],
+      { w: 4.2, seed: 222, wobble: 1, taper: [0.15, 0.15], peak: 0.55, color: ink },
+    ) +
+    brush(
+      [
+        [88, 51],
+        [104, 54],
+        [124, 54],
+        [142, 52],
+        [151, 50],
+      ],
+      { w: 4.2, seed: 224, wobble: 1, taper: [0.15, 0.15], peak: 0.45, color: ink },
+    )
+  for (let i = 0; i < spotN; i++) seg2 += speck(110 + i * 20, 33 + i * 14, 4.5, 223 + i)
+  const seg3Wash: P2[] = [
+    [38, 30],
+    [54, 27],
+    [72, 27],
+    [88, 29],
+    [97, 32],
+    [97, 48],
+    [88, 51],
+    [72, 53],
+    [54, 53],
+    [38, 50],
+  ]
+  let seg3 =
+    wash(seg3Wash, wc, { seed: 231, amp: 3, opacity: 0.72, rim: 1 }) +
+    brush(
+      [
+        [40, 30],
+        [54, 27],
+        [72, 27],
+        [88, 29],
+        [95, 31],
+      ],
+      { w: 4, seed: 232, wobble: 1, taper: [0.15, 0.15], peak: 0.55, color: ink },
+    ) +
+    brush(
+      [
+        [40, 50],
+        [54, 53],
+        [72, 53],
+        [88, 51],
+        [95, 49],
+      ],
+      { w: 4, seed: 234, wobble: 1, taper: [0.15, 0.15], peak: 0.45, color: ink },
+    )
+  for (let i = 0; i < spotN; i++) seg3 += speck(58 + i * 20, 34 + i * 13, 4, 233 + i)
   const tail =
-    path('M22 33C32 30 44 29 56 30L56 50C44 51 32 50 22 47Z', body) +
-    ellipse(14, 40, 11, 12, body) +
-    belly(24, 54)
+    wash(ellipsePts(28, 40, 30, 14, 8, 0.15), wc, {
+      seed: 241,
+      amp: 3,
+      opacity: 0.65,
+      rim: 0.8,
+    }) +
+    brush(
+      [
+        [48, 32],
+        [38, 30],
+        [28, 30],
+        [18, 33],
+      ],
+      { w: 3.4, seed: 242, wobble: 0.9, taper: [0.15, 0.2], peak: 0.4, color: ink },
+    ) +
+    brush(
+      [
+        [48, 48],
+        [38, 50],
+        [28, 50],
+        [18, 47],
+      ],
+      { w: 3.4, seed: 244, wobble: 0.9, taper: [0.15, 0.2], peak: 0.4, color: ink },
+    ) +
+    contour(ellipsePts(10, 40, 9, 12, 7, 0.3), 2.6, 243, ink, 0.9)
   return `<g class="fish dojo" data-species="dojo">
     ${pivot(
       150,
@@ -162,31 +390,140 @@ export function dojo(prefix = ''): string {
   </g>`
 }
 
-export function funa(prefix: string): string {
+/**
+ * Funa (crucian carp): a deep-bodied, blunter version of the same technique - one tapered
+ * outline for the (unpivoted) body, forked tail as two open sweeps, a rear wedge and a small
+ * dorsal pennant. Olive wash with a paler belly bloom, ink-dot eye, gill and scale hatches, two
+ * small static fin flicks. ~17 elements.
+ */
+export function funa(): string {
+  const ink = v('ink')
+  const wc = v('funa-wash')
+  const bodyLine: P2[] = [
+    [46, 30],
+    [66, 16],
+    [100, 10],
+    [136, 12],
+    [164, 20],
+    [186, 32],
+    [197, 40],
+    [196, 45],
+    [182, 54],
+    [156, 62],
+    [122, 66],
+    [86, 62],
+    [58, 54],
+    [46, 48],
+  ]
+  const scaleN = Math.max(1, Math.round(2 * INK.detail))
+  let scaleMarks = ''
+  for (let i = 0; i < scaleN; i++)
+    scaleMarks += hatch(84 + i * 30, 40 + i * 6, 14, 0.15 + i * 0.1, 1.6, ink, 0.5)
+  const body =
+    wash(bodyLine, wc, {
+      seed: 311,
+      amp: 5,
+      opacity: 0.75,
+      rim: 1.1,
+      bloom: { color: v('funa-belly'), scale: 0.55, opacity: 0.4, dy: 10 },
+    }) +
+    brush(bodyLine, { w: 4, seed: 312, wobble: 1, taper: [0.2, 0.2], peak: 0.46, color: ink }) +
+    hatch(172, 34, 12, 1.8, 1.8, ink, 0.55) +
+    scaleMarks +
+    circle(180, 37, 3, ink) +
+    circle(181.1, 35.9, 1, '#fff')
+  const tail =
+    wash(
+      [
+        [45, 30],
+        [9, 12],
+        [1, 40],
+        [9, 68],
+        [45, 50],
+      ],
+      wc,
+      { seed: 321, amp: 5, opacity: 0.5, rim: 0.7 },
+    ) +
+    brush(
+      [
+        [44, 31],
+        [25, 20],
+        [9, 10],
+        [2, 6],
+      ],
+      { w: 3.2, seed: 322, wobble: 0.8, taper: [0.4, 0.12], peak: 0.2, color: ink },
+    ) +
+    brush(
+      [
+        [44, 49],
+        [25, 60],
+        [9, 70],
+        [2, 74],
+      ],
+      { w: 3.2, seed: 323, wobble: 0.8, taper: [0.4, 0.12], peak: 0.2, color: ink },
+    )
+  const rearLine: P2[] = [
+    [44, 30],
+    [64, 22],
+    [84, 28],
+    [92, 40],
+    [84, 52],
+    [64, 58],
+    [44, 50],
+  ]
+  const rear =
+    wash(rearLine, wc, { seed: 331, amp: 4, opacity: 0.65, rim: 1 }) +
+    brush(rearLine, { w: 3.2, seed: 332, wobble: 1, taper: [0.18, 0.18], peak: 0.5, color: ink })
+  const dorsal =
+    wash(
+      [
+        [100, 16],
+        [112, 5],
+        [122, 9],
+        [112, 17],
+      ],
+      wc,
+      { seed: 341, amp: 3, opacity: 0.5, rim: 0.5 },
+    ) +
+    brush(
+      [
+        [100, 17],
+        [110, 5],
+        [122, 9],
+      ],
+      { w: 2.2, seed: 342, wobble: 0.6, taper: [0.3, 0.1], color: ink, opacity: 0.85 },
+    )
+  const fins =
+    brush(
+      [
+        [114, 60],
+        [106, 72],
+        [98, 68],
+      ],
+      { w: 1.8, seed: 351, wobble: 0.5, taper: [0.35, 0.08], color: ink, opacity: 0.8 },
+    ) +
+    brush(
+      [
+        [82, 56],
+        [74, 66],
+        [66, 62],
+      ],
+      { w: 1.6, seed: 352, wobble: 0.5, taper: [0.35, 0.08], color: ink, opacity: 0.75 },
+    )
   return `<g class="fish funa" data-species="funa">
-    ${ellipse(120, 24, 24, 5, '#ffffff', 'opacity=".25"')}
-    ${pivot(46, 40, 'rig-tail', path('M46 40L6 14L14 40L6 66Z', v('funa-fin')))}
-    ${pivot(92, 40, 'rig-rear', path('M92 22C74 26 58 34 44 40C58 46 74 54 92 58Z', v('funa')))}
-    ${path('M44 40C70 12 110 8 140 14C170 20 188 30 196 40C188 50 170 60 140 66C110 72 70 68 44 40Z', `url(#${prefix}funaBody)`)}
-    ${pivot(110, 14, 'rig-dorsal', path('M86 18C96 4 124 2 134 12L134 20C120 16 100 16 86 18Z', v('funa-fin')))}
-    ${path('M150 50C144 62 128 66 118 62C128 56 140 52 150 50Z', v('funa-fin'))}
-    ${path('M110 62L104 74L120 66Z', v('funa-fin'))}
-    ${path('M78 56L70 68L88 60Z', v('funa-fin'))}
-    ${path('M60 40C100 36 140 36 180 40', 'none', `stroke="#5e6a55" stroke-width="1" opacity=".5"`)}
-    ${ellipse(130, 26, 20, 5, '#dfe3d2', 'opacity=".35"')}
-    ${circle(176, 34, 3.5, v('koi-ink'))}${circle(177.2, 32.8, 1.2, '#fff')}
+    ${pivot(46, 40, 'rig-tail', tail)}
+    ${pivot(92, 40, 'rig-rear', rear)}
+    ${body}
+    ${pivot(110, 14, 'rig-dorsal', dorsal)}
+    ${fins}
   </g>`
 }
 
-export function fishMarkup(spec: FishSpec, prefix: string, withShadow = true): string {
+export function fishMarkup(spec: FishSpec, _prefix: string, withShadow = true): string {
   const inner =
-    spec.species === 'koi'
-      ? koi(spec.variant, prefix)
-      : spec.species === 'dojo'
-        ? dojo(prefix)
-        : funa(prefix)
+    spec.species === 'koi' ? koi(spec.variant) : spec.species === 'dojo' ? dojo() : funa()
   const shadow = withShadow
-    ? `<ellipse class="fish-shadow" data-shadow="${spec.id}" rx="${f(60 * spec.scale)}" ry="${f(10 * spec.scale)}" fill="url(#${prefix}ao)" opacity="0"/>`
+    ? `<ellipse class="fish-shadow" data-shadow="${spec.id}" rx="${f(60 * spec.scale)}" ry="${f(10 * spec.scale)}" fill="#1f2a30" fill-opacity=".35" opacity="0"/>`
     : ''
   return `<path class="lane" data-lane="${spec.id}" d="${spec.lane}" fill="none" stroke="none"/>
     ${shadow}<g class="fish-mover" data-fish="${spec.id}"><g transform="scale(${f(spec.scale)}) translate(-100 -40)">${inner}</g></g>`

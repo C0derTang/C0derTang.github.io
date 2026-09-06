@@ -1,6 +1,7 @@
 import { BEATS, FOCAL } from '../config/beats'
 import { monotoneCubic } from '../util/math'
 import { f } from './draw'
+import { LAYER_DEFAULTS } from './layer'
 
 /**
  * The look-around inside the house is a pan, not a rotation: the camera holds cz = PAN.cz and
@@ -52,6 +53,15 @@ export const yawOf = (pan: number): number => pan * 90
  */
 export const withWrapFace = (id: string, depth: number, inner: string): string =>
   `<g id="${id}">${inner}</g><use href="#${id}" transform="translate(${f(faceOffset(PAN.faces, depth))} 0)"/>`
+
+/**
+ * Depth a part is actually projected at: its own on the high tier, the layer's once parts are
+ * merged into one viewport (low tier). Face offsets must use this or the copies drift.
+ */
+export const effectiveDepth = (
+  layer: { depth: number; microParallax?: boolean },
+  partDepth: number,
+): number => ((layer.microParallax ?? LAYER_DEFAULTS.microParallax) ? partDepth : layer.depth)
 
 /** Wrap markup authored in the 1600-wide frame as face `face` of a part at `depth`. */
 export const atFace = (face: number, depth: number, inner: string): string =>

@@ -1,66 +1,95 @@
 import { animate } from 'animejs'
 import type { Quality } from '../../config/quality'
 import { WATER } from '../../config/layers'
-import {
-  aoGrad,
-  cyl,
-  ellipse,
-  fogRect,
-  linGrad,
-  path,
-  polygon,
-  radGrad,
-  rect,
-  shadow,
-  texRect,
-  v,
-  wobbly,
-} from '../draw'
+import { brush, contour, ellipsePts, fogRect, granulated, hatch, texRect, v, wash } from '../draw'
+import type { P2 } from '../draw'
 import { fishDefs, fishMarkup, startSwim, type FishSpec } from '../fish'
 import { makeSvgLayer } from '../layer'
 import type { Layer } from '../types'
 import { attrWrite } from '../../util/dom'
 import { mulberry32 } from '../../util/math'
 
-function ceilingLayer(): Layer {
-  const wave = (y: number, amp: number) => {
-    let d = `M-200 ${y}`
-    for (let x = -200; x <= 1800; x += 130) d += `q65 ${amp} 130 0`
-    return d
+/** A long undulating polyline across the frame bleed, sampled for an ink wave-line stroke. */
+function wavePts(y: number, amp: number, seed: number): P2[] {
+  const rnd = mulberry32(seed)
+  const pts: P2[] = []
+  for (let x = -400; x <= 2000; x += 140) {
+    pts.push([x, y + Math.sin((x + seed * 97) / 210) * amp + (rnd() - 0.5) * 6])
   }
-  const inner = `<defs>${radGrad('uw-snell', [
-    [0, '#e4f3ec', 0.5],
-    [0.6, '#9fcabf', 0.25],
-    [1, '#9fcabf', 0],
-  ])}</defs>
-    ${path(`${wave(300, 20)}V-220H-200Z`, '#4f8a80', 'opacity=".55"')}
-    ${texRect('water', -200, -220, 2000, 520, 512, 0.3, 256)}
-    ${ellipse(800, 170, 450, 130, 'url(#uw-snell)')}
-    ${path(wave(200, 16), 'none', `stroke="${v('uw-ray')}" stroke-width="3" opacity=".5"`)}
-    ${path(wave(240, 14), 'none', `stroke="${v('uw-ray')}" stroke-width="2" opacity=".3"`)}
-    ${path(wave(280, 18), 'none', `stroke="${v('uw-ray')}" stroke-width="2" opacity=".2"`)}`
-  return makeSvgLayer('uw-ceiling', WATER.ceiling, inner)
+  return pts
 }
 
+/**
+ * The water surface seen from below: a granulated deep-teal "mirror" wash filling the ceiling,
+ * a paler halo and a paper-white Snell's-window wash near the top centre (the cone of sky
+ * visible from underwater, rims off so it stays soft), and open ink strokes tracing the
+ * underside of the surface chop. Colour is washes only; no gradients, no material tiles.
+ */
+function ceilingLayer(): Layer {
+  const cx = 800
+  const cy = 190
+  // Deep mirror band up top, a paler band lower down so the two granulated washes overlap and
+  // step the tone rather than cutting off hard against the fixed background gradient below.
+  const deep = granulated('uwc-deep', -400, -400, 2400, 620, v('uw-wash-deep'), {
+    seed: 81,
+    amp: 22,
+    opacity: 0.6,
+    rim: 0,
+  })
+  const mid = granulated('uwc-mid', -400, 30, 2400, 460, v('uw-wash'), {
+    seed: 87,
+    amp: 20,
+    opacity: 0.4,
+    rim: 0,
+  })
+  const halo = wash(ellipsePts(cx, cy, 470, 195, 16, 0.2), v('uw-wash'), {
+    seed: 82,
+    amp: 10,
+    opacity: 0.48,
+    rim: 0,
+  })
+  const window = wash(ellipsePts(cx, cy, 290, 118, 16, 0.5), v('cloud'), {
+    seed: 83,
+    amp: 8,
+    opacity: 0.55,
+    rim: 0,
+    bloom: { color: '#ffffff', scale: 0.5, opacity: 0.4, dy: -8 },
+  })
+  const chop =
+    brush(wavePts(230, 14, 1), { w: 2.4, seed: 84, wobble: 2, color: v('ink'), opacity: 0.6 }) +
+    brush(wavePts(275, 12, 2), {
+      w: 2.2,
+      seed: 85,
+      wobble: 2,
+      color: v('ink-mid'),
+      opacity: 0.46,
+    }) +
+    brush(wavePts(320, 16, 3), { w: 2, seed: 86, wobble: 2, color: v('ink-mid'), opacity: 0.32 })
+  return makeSvgLayer('uw-ceiling', WATER.ceiling, deep + mid + halo + window + chop)
+}
+
+/**
+ * Light shafts as pale paper washes (no rim, so no line reads at their edges), fanning down
+ * from the surface. Same `.rays`/`.ray` group structure and drift animation as before.
+ */
 function raysLayer(): Layer {
   let rays = ''
   for (let i = 0; i < 6; i++) {
-    rays += polygon(
-      [
-        [560 + 70 * i, -220],
-        [600 + 70 * i, -220],
-        [320 + 220 * i, 1420],
-        [200 + 220 * i, 1420],
-      ],
-      'url(#uw-ray)',
-      `class="ray" data-i="${i}"`,
-    )
+    const shaft: P2[] = [
+      [560 + 70 * i, -220],
+      [600 + 70 * i, -220],
+      [320 + 220 * i, 1420],
+      [200 + 220 * i, 1420],
+    ]
+    rays += wash(shaft, v('cloud'), {
+      seed: 60 + i,
+      amp: 14,
+      opacity: 0.12 + (0.08 * i) / 5,
+      rim: 0,
+      extra: `class="ray" data-i="${i}"`,
+    })
   }
-  const inner = `<defs>${linGrad('uw-ray', [
-    [0, v('uw-ray'), 0.3],
-    [0.5, v('uw-ray'), 0.12],
-    [0.85, v('uw-ray'), 0],
-  ])}</defs><g class="rays">${rays}</g>`
+  const inner = `<g class="rays">${rays}</g>`
   const layer = makeSvgLayer('uw-rays', { ...WATER.rays, live: true }, inner)
   const g = layer.el.querySelector('.rays')
   if (g)
@@ -77,96 +106,154 @@ function raysLayer(): Layer {
   return layer
 }
 
+/** A short splay of root-flick marks from a stem's base, mostly pointing down into the mud. */
+function rootFlick(
+  x: number,
+  y: number,
+  seed: number,
+  w: number,
+  color: string,
+  opacity: number,
+): string {
+  const rnd = mulberry32(seed)
+  let out = ''
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 2 + (rnd() - 0.5) * 1.7
+    const len = 14 + rnd() * 18
+    out += hatch(x, y, len, a, w, color, opacity)
+  }
+  return out
+}
+
+/** A closed thin ribbon loop beside a curve: the curve shifted out, and shifted in, joined. */
+function sideRibbon(pts: readonly P2[], outOffset: number, innerOffset: number): P2[] {
+  const outer = pts.map(([x, y]): P2 => [x + outOffset, y])
+  const inner = pts.map(([x, y]): P2 => [x + innerOffset, y])
+  return [...outer, ...inner.reverse()]
+}
+
 function stemsLayer(id: string, opts: { depth: number; restCz: number }, near: boolean): Layer {
   const rnd = mulberry32(near ? 91 : 92)
   let stems = ''
   if (near) {
+    // Five long tapered black strokes framing the left/right edges, each with a green wash
+    // (a second blade of the clump) bled in toward the centre of frame.
     for (const x of [-40, 60, 1480, 1580, 1660]) {
-      const w = 12 + rnd() * 6
-      const d = `M${x} 1420C${x + 20} 900 ${x - 30} 500 ${x + 10} -100`
-      stems += path(
-        d,
-        'none',
-        `stroke="${v('uw-stem-near')}" stroke-width="${(w + 8).toFixed(1)}" opacity=".35" stroke-linecap="round"`,
-      )
-      stems += path(
-        d,
-        'none',
-        `stroke="${v('uw-stem-near')}" stroke-width="${w.toFixed(1)}" stroke-linecap="round"`,
-      )
+      const seed = 900 + Math.round(x + 200)
+      const r = mulberry32(seed)
+      const lean = (r() - 0.5) * 70
+      const pts: P2[] = [
+        [x, 1440],
+        [x + lean * 0.35, 900],
+        [x - lean * 0.45, 480],
+        [x + lean * 0.2, -220],
+      ]
+      const side = x < 800 ? 1 : -1
+      stems += wash(sideRibbon(pts, side * 24, side * 2), v('rice-wash'), {
+        seed: seed + 40,
+        amp: 8,
+        opacity: 0.48,
+        rim: 1,
+      })
+      stems += brush(pts, { w: 6, seed: seed + 80, wobble: 3, color: v('ink'), opacity: 1 })
     }
   } else {
+    // ~26 thin grey brush strokes with small root flicks at the base.
     for (let i = 0; i < 26; i++) {
       const x = -100 + rnd() * 1800
       const top = 120 + rnd() * 60
-      const w = 3 + rnd() * 2
       const bend = (rnd() - 0.5) * 80
-      stems += path(
-        `M${x} 980C${x + bend} 700 ${x - bend} 400 ${x + bend / 2} ${top}`,
-        'none',
-        `stroke="${v('uw-stem')}" stroke-width="${w.toFixed(1)}" opacity=".75" stroke-linecap="round"`,
-      )
-      stems += path(
-        `M${x} 980l-14 24M${x} 980l10 26M${x} 980l-4 30M${x} 980l18 16`,
-        'none',
-        `stroke="#5b6a52" stroke-width="2" opacity=".6"`,
-      )
+      const pts: P2[] = [
+        [x, 980],
+        [x + bend * 0.6, 700],
+        [x - bend * 0.6, 400],
+        [x + bend / 2, top],
+      ]
+      stems += brush(pts, {
+        w: 1.5,
+        seed: 400 + i,
+        wobble: 1.4,
+        color: v('ink-far'),
+        opacity: 0.7,
+        taper: [0.15, 0.03],
+      })
+      stems += rootFlick(x, 980, 500 + i, 1, v('ink-far'), 0.55)
     }
   }
-  const fog = near ? '' : fogRect('fog', -300, -300, 2200, 1800, v('uw-mid'))
+  const fog = near ? '' : fogRect('fog', -300, -300, 2200, 1800, v('uw-wash'))
   const layer = makeSvgLayer(id, opts, stems + fog)
   const fogEl = layer.el.querySelector('.fog')
   if (fogEl) fogEl.setAttribute('opacity', '0.18')
   return layer
 }
 
+/**
+ * The mud bed: a granulated brown wash, one long open ink horizon stroke where mud meets water,
+ * a scatter of ink stone contours with grey washes, and a few root/debris marks.
+ */
 function mudLayer(low: boolean): Layer {
   const rnd = mulberry32(93)
+  const bedX = -400
+  const bedY = 960
+  const bedW = 2400
+  const bedH = 640
+  const bed = granulated('uwm-bed', bedX, bedY, bedW, bedH, v('mud-wash'), {
+    seed: 94,
+    amp: 16,
+    opacity: 0.6,
+    rim: 0,
+  })
+  const horizon = brush(
+    [
+      [-400, 986],
+      [200, 976],
+      [700, 994],
+      [1150, 980],
+      [1650, 992],
+      [2000, 982],
+    ],
+    { w: 3.6, seed: 95, wobble: 2.5, color: v('ink'), opacity: 0.85 },
+  )
   let stones = ''
   for (let i = 0; i < 14; i++) {
     const x = -200 + rnd() * 2000
-    const y = 990 + rnd() * 40
+    const y = 995 + rnd() * 45
     const rx = 12 + rnd() * 18
     const ry = 6 + rnd() * 8
+    const pts = ellipsePts(x, y, rx, ry, 7, rnd() * Math.PI)
+    const dark = rnd() < 0.4
     stones +=
-      shadow(x, y + ry * 0.6, rx * 1.3, ry * 0.7, 'uw-ao', 0.8) +
-      ellipse(x, y, rx, ry, 'url(#uw-stone)')
+      wash(pts, dark ? v('stone-wall-dark') : v('stone-wall'), {
+        seed: 96 + i,
+        amp: 3,
+        opacity: 0.55,
+        rim: 1,
+      }) + contour(pts, 2.6, 97 + i, v('ink'), 0.8)
   }
-  const inner = `<defs>${linGrad('uw-mudGrad', [
-    [0, v('mud-light')],
-    [0.2, v('mud')],
-    [1, v('mud-dark')],
-  ])}${cyl('uw-stone', '#4a4034', '#5f5546', '#7d7466', 0.3)}${aoGrad('uw-ao', v('uw-abyss'), 0.6)}</defs>
-    ${rect(-280, 980, 2160, 440, 'url(#uw-mudGrad)')}
-    ${path(
-      wobbly(
-        [
-          [-280, 980],
-          [1880, 980],
-          [1880, 1010],
-          [-280, 1010],
-        ],
-        6,
-        94,
-      ),
-      v('mud-light'),
-    )}
-    ${low ? texRect('causticA', -280, 990, 2160, 430, 512, 0.2, 256) : ''}
-    ${stones}
-    ${ellipse(420, 1000, 14, 6, '#2e2418')}${ellipse(1180, 1006, 12, 5, '#2e2418')}${ellipse(860, 1012, 10, 5, '#2e2418')}`
-  return makeSvgLayer('uw-mud', WATER.mud, inner)
+  const debrisSpots: readonly (readonly [number, number])[] = [
+    [420, 1005],
+    [1180, 1010],
+    [860, 1015],
+  ]
+  let debris = ''
+  for (const [dx, dy] of debrisSpots) {
+    debris += hatch(dx, dy, 16, 0.3, 1.6, v('ink'), 0.6)
+    debris += hatch(dx + 8, dy + 2, 12, 2.6, 1.3, v('ink-mid'), 0.5)
+  }
+  const lowCaustic = low ? texRect('causticA', bedX, bedY + 10, bedW, bedH - 20, 512, 0.2, 256) : ''
+  return makeSvgLayer('uw-mud', WATER.mud, `${bed}${lowCaustic}${horizon}${stones}${debris}`)
 }
 
 /** Dappled light on the mud: two caustic tiles drifting against each other (live plane), plus a compound fog plane. */
 function causticsLayer(quality: Quality): Layer {
-  const inner = `<g class="caust"><g class="ca">${texRect('causticA', -280 - 512, 992, 2160 + 1024, 430, 512, 0.2, 256)}</g><g class="cb">${texRect(
+  const inner = `<g class="caust"><g class="ca">${texRect('causticA', -280 - 512, 992, 2160 + 1024, 430, 512, 0.18, 256)}</g><g class="cb">${texRect(
     'causticB',
     -280 - 666,
     992,
     2160 + 1332,
     430,
     666,
-    0.14,
+    0.12,
     333,
   )}</g></g>${fogRect('fog', -300, -300, 2200, 1800, v('uw-mid'))}`
   const layer = makeSvgLayer(

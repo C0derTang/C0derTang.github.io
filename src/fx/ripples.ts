@@ -76,7 +76,6 @@ export function createRipples(canvas: Canvas2D, quality: Quality): Fx {
 
       ctx.save()
       if (r.clip) clipRects(ctx, r.clip)
-      ctx.lineWidth = 1.5
       for (let i = rings.length - 1; i >= 0; i--) {
         const g = rings[i]
         if (!g) continue
@@ -86,13 +85,22 @@ export function createRipples(canvas: Canvas2D, quality: Quality): Fx {
           continue
         }
         const rx = g.size * (0.15 + 0.85 * u)
-        ctx.strokeStyle = rgba(PALETTE.ripple, 0.4 * (1 - u) * r.strength)
+        const ry = rx * 0.28
+        const a = (1 - u) * r.strength
+        // thin ink ring fading out, with a paper-white gap pooling just inside it
+        ctx.lineWidth = 1
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.35 * a)
         ctx.beginPath()
-        ctx.ellipse(g.x, g.y, rx, rx * 0.28, 0, 0, Math.PI * 2)
+        ctx.ellipse(g.x, g.y, rx, ry, 0, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.lineWidth = 0.8
+        ctx.strokeStyle = rgba(PALETTE.paper, 0.4 * a)
+        ctx.beginPath()
+        ctx.ellipse(g.x, g.y, rx * 0.8, ry * 0.8, 0, 0, Math.PI * 2)
         ctx.stroke()
       }
-      // far stipple: rain hitting distant water near the horizon
-      ctx.fillStyle = rgba(PALETTE.ripple, 0.25 * r.strength)
+      // far stipple: rain hitting distant water near the horizon, fine ink flecks
+      ctx.fillStyle = rgba(PALETTE.inkFar, 0.25 * r.strength)
       const band = Math.min(40, (y1 - y0) * 0.15)
       for (const s of stipple) {
         if (s.x < x0 || s.x > x1) continue

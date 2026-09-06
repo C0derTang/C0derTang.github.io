@@ -1,17 +1,11 @@
 /** Hex mirrors of tokens.css for canvas drawing (canvas cannot read CSS custom properties). */
 export const PALETTE = {
-  rainStreak: '#dfe6ea',
-  rainWarm: '#e8e2d2',
-  ripple: '#e6eef0',
-  bubbleRim: '#cfe8dd',
-  splash: '#e6eef0',
-  uwDeep: '#1c3f4e',
-  silt: '#c8d6c9',
-  /* ink and wash */
+  /* ink and wash: ink weight by depth (near -> far) and the paper-white of a wash highlight */
   ink: '#1a1c1e',
   inkMid: '#3b4448',
   inkFar: '#6b767c',
   paper: '#e8ebe8',
+  /** rain streak ink for the mid-depth band (the near/far bands draw with ink/inkFar directly) */
   rainInk: '#3b4448',
 } as const
 

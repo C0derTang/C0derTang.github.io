@@ -26,7 +26,8 @@ export function createHud(air: Stage, water: Stage, tier: string) {
       const lines = [
         `t ${s.t.toFixed(4)}  beat ${s.beat}  u ${s.u[s.beat].toFixed(3)}  fps ${fps.toFixed(0)}  tier ${tier}`,
         `cam cz ${s.cam.cz.toFixed(0)} cx ${s.cam.cx.toFixed(0)} cy ${s.cam.cy.toFixed(0)}  doors ${s.doors.toFixed(2)}  wl ${s.wl.toFixed(0)}`,
-        `air ${s.air.visible ? 'on ' : 'off'} live ${air.liveCount()}   water ${s.water.visible ? 'on ' : 'off'} live ${water.liveCount()}   rain ${s.rain.alpha.toFixed(2)}${s.rain.clip ? ' clip' : ''}`,
+        `air ${s.air.visible ? 'on ' : 'off'} live ${air.liveCount()}   water ${s.water.visible ? 'on ' : 'off'} live ${water.liveCount()}   rain ${s.rain.alpha.toFixed(2)}${s.rain.clip ? ' clip' : ''} x${s.rain.speed.toFixed(2)} slant ${s.rain.slant.toFixed(2)}`,
+        `pan ${s.pan.toFixed(2)}  yaw ${s.yaw.toFixed(0)}`,
         '',
       ]
       for (const L of air.layers) {

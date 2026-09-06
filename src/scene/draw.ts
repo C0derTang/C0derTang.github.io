@@ -70,20 +70,6 @@ export const linGrad = (
 ): string =>
   `<linearGradient id="${id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">${stops(list)}</linearGradient>`
 
-/** Two-tone "brush band" gradient: A up to 48%, B from 52%. Angle in degrees. */
-export const banded = (id: string, a: string, b: string, angle = 0): string =>
-  `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1" gradientTransform="rotate(${angle} .5 .5)">${stops(
-    [
-      [0, a],
-      [0.48, a],
-      [0.52, b],
-      [1, b],
-    ],
-  )}</linearGradient>`
-
-export const radGrad = (id: string, list: readonly Stop[], cx = 0.5, cy = 0.5, r = 0.5): string =>
-  `<radialGradient id="${id}" cx="${cx}" cy="${cy}" r="${r}">${stops(list)}</radialGradient>`
-
 export const rect = (
   x: number,
   y: number,
@@ -127,398 +113,7 @@ export const fogRect = (
 ): string =>
   `<rect class="${cls}" x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" fill="${color}" opacity="0"/>`
 
-/** Per-layer gradient defs the cedar/foliage recipes reference (`ids` = id prefix). */
-export const cedarDefs = (ids: string, far = false): string =>
-  (far
-    ? linGrad(
-        `${ids}-bough`,
-        [
-          [0, '#7c9a94'],
-          [0.5, v('green-far')],
-          [1, '#4e6a64'],
-        ],
-        0,
-        0,
-        1,
-        1,
-      )
-    : linGrad(
-        `${ids}-bough`,
-        [
-          [0, v('green-mid')],
-          [0.45, v('green-deep')],
-          [1, v('green-shadow')],
-        ],
-        0,
-        0,
-        1,
-        1,
-      )) +
-  cyl(`${ids}-bark`, v('bark-dark'), v('wood-mid'), v('bark-light'), 0.3) +
-  aoGrad(`${ids}-ao`, v('ao-cool'), 0.5) +
-  fadeGrad(`${ids}-wet`, v('wet'), 0, 0.35)
-
-/**
- * Sugi cedar: drooping bough tiers of clustered shapes, key light upper-left (diagonal
- * bough gradient), lit crests, AO hems, the far side of the crown in shadow, a sky rim on the
- * top-left edges, a bark-shaded trunk with a wet base and a contact shadow. ~38 elements.
- * (x, baseY) is the trunk base; `ids` selects the defs prefix (see cedarDefs).
- */
-export function cedar(
-  x: number,
-  baseY: number,
-  scale: number,
-  seed: number,
-  tiers = 7,
-  ids = 'ex',
-): string {
-  const rnd = mulberry32(seed)
-  const trunkW = 26 * scale
-  const trunkH = 150 * scale
-  const tierH = 105 * scale
-  const overlap = 42 * scale
-  let top = baseY - trunkH + 34 * scale
-  const tierPaths: string[] = []
-  let boughs = ''
-  for (let i = 0; i < tiers; i++) {
-    const w = (300 - 34 * i) * scale
-    const last = i === tiers - 1
-    const yb = top
-    const yt = top - tierH - (last ? 50 * scale : 0)
-    const droop = (14 + rnd() * 10) * scale
-    const j = (rnd() - 0.5) * 14 * scale
-    const pts: P2[] = [
-      [x - w / 2 + j, yb + droop],
-      [x - w * 0.3, yb - tierH * 0.28],
-      [x, yt],
-      [x + w * 0.3, yb - tierH * 0.28],
-      [x + w / 2 + j, yb + droop],
-      [x + w * 0.22, yb + droop * 0.4],
-      [x, yb + droop * 0.9],
-      [x - w * 0.22, yb + droop * 0.4],
-    ]
-    const d = wobbly(pts, 9 * scale, seed + i * 7)
-    tierPaths.push(d)
-    boughs +=
-      path(d, `url(#${ids}-bough)`) +
-      ellipse(
-        x - w * 0.16,
-        yb - tierH * 0.55,
-        w * 0.22,
-        tierH * 0.16,
-        v('green-crest'),
-        'opacity=".35"',
-      ) +
-      ellipse(
-        x + w * 0.05,
-        yb + droop * 0.5,
-        w * 0.38,
-        droop * 0.9,
-        v('green-shadow'),
-        'opacity=".45"',
-      )
-    top = yt + overlap
-  }
-  const back = tierPaths
-    .map((d) => path(d, v('green-shadow'), 'opacity=".9" transform="translate(10 -6)"'))
-    .join('')
-  const rim = tierPaths
-    .map((d) => path(d, v('rim'), 'opacity=".16" transform="translate(-3 -4)"'))
-    .join('')
-  const trunk =
-    rect(x - trunkW / 2, baseY - trunkH, trunkW, trunkH, `url(#${ids}-bark)`) +
-    texRect('bark', x - trunkW / 2, baseY - trunkH, trunkW, trunkH, trunkW, 0.4, trunkH) +
-    rect(x - trunkW / 2, baseY - 40 * scale, trunkW, 40 * scale, `url(#${ids}-wet)`)
-  return `<g class="cedar">${shadow(x, baseY, 70 * scale, 12 * scale, `${ids}-ao`, 0.4)}${back}${rim}${trunk}${boughs}</g>`
-}
-
-/** Distant cedar: four gradient tiers and a trunk, no crests or rims (6 elements). */
-export function cedarFar(
-  x: number,
-  baseY: number,
-  scale: number,
-  seed: number,
-  ids = 'ex',
-): string {
-  const rnd = mulberry32(seed)
-  const tierH = 90 * scale
-  const overlap = 36 * scale
-  let top = baseY - 20 * scale
-  let out = rect(x - 5 * scale, baseY - 40 * scale, 10 * scale, 40 * scale, '#4e6a64')
-  for (let i = 0; i < 4; i++) {
-    const w = (220 - 40 * i) * scale
-    const last = i === 3
-    const yt = top - tierH - (last ? 40 * scale : 0)
-    const droop = (10 + rnd() * 8) * scale
-    out += path(
-      wobbly(
-        [
-          [x - w / 2, top + droop],
-          [x - w * 0.3, top - tierH * 0.25],
-          [x, yt],
-          [x + w * 0.3, top - tierH * 0.25],
-          [x + w / 2, top + droop],
-          [x, top + droop * 0.8],
-        ],
-        6 * scale,
-        seed + i * 3,
-      ),
-      `url(#${ids}-bough)`,
-    )
-    top = yt + overlap
-  }
-  return out
-}
-
-/** Broadleaf mass: three overlapping wobbly ellipsoids (shadow / mid / lit), a crest and an AO hem (5 elements). */
-export function foliage(x: number, y: number, w: number, seed: number, ids = 'ex'): string {
-  const blob = (
-    cx: number,
-    cy: number,
-    rx: number,
-    ry: number,
-    amp: number,
-    sd: number,
-  ): string => {
-    const pts: P2[] = []
-    for (let k = 0; k < 8; k++) {
-      const a = (k / 8) * Math.PI * 2
-      pts.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry])
-    }
-    return wobbly(pts, amp, sd)
-  }
-  return (
-    path(blob(x + w * 0.12, y + w * 0.04, w * 0.5, w * 0.3, w * 0.05, seed), v('green-shadow')) +
-    path(blob(x, y, w * 0.48, w * 0.3, w * 0.05, seed + 1), `url(#${ids}-bough)`) +
-    path(
-      blob(x - w * 0.18, y - w * 0.1, w * 0.3, w * 0.2, w * 0.04, seed + 2),
-      v('green-mid'),
-      'opacity=".8"',
-    ) +
-    ellipse(x - w * 0.22, y - w * 0.2, w * 0.14, w * 0.06, v('green-crest'), 'opacity=".35"') +
-    ellipse(x + w * 0.05, y + w * 0.26, w * 0.4, w * 0.06, v('green-shadow'), 'opacity=".45"')
-  )
-}
-
-/**
- * Shoji panel: dark frame, paper fill, lattice. Returns markup positioned at (x, y).
- * `lit` picks the warm gradient id (`<prefix>paperLit`) instead of the cool one.
- */
-export function shojiPanel(
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  o: {
-    lit?: boolean
-    cols?: number
-    rows?: number
-    cls?: string
-    prefix?: string
-    extra?: string
-    /** offset lattice shadow on the paper (lamp side) */
-    shadow?: boolean
-    /** gradient id for a translucency glow drawn over the paper */
-    glow?: string
-  } = {},
-): string {
-  const {
-    lit = false,
-    cols = 3,
-    rows = 6,
-    cls = '',
-    prefix = '',
-    extra = '',
-    shadow: lattShadow = false,
-    glow: glowId = '',
-  } = o
-  const fr = 8
-  const ix = x + fr
-  const iy = y + fr
-  const iw = w - 2 * fr
-  const ih = h - 2 * fr
-  let lattice = ''
-  for (let i = 1; i < cols; i++) lattice += `M${f(ix + (iw * i) / cols)} ${f(iy)}v${f(ih)}`
-  for (let i = 1; i < rows; i++) lattice += `M${f(ix)} ${f(iy + (ih * i) / rows)}h${f(iw)}`
-  const glowRect = glowId ? ellipse(x + w / 2, y + h / 2, w * 0.5, h * 0.5, `url(#${glowId})`) : ''
-  const shadowPath = lattShadow
-    ? `<path d="${lattice}" stroke="${v('shade-warm')}" stroke-width="3" opacity=".15" fill="none" transform="translate(2 2)"/>`
-    : ''
-  return `<g class="shoji ${cls}" ${extra}>${rect(x, y, w, h, v('wood-dark'))}${rect(
-    ix,
-    iy,
-    iw,
-    ih,
-    `url(#${prefix}${lit ? 'paperLit' : 'paperCool'})`,
-  )}${glowRect}${shadowPath}<path d="${lattice}" stroke="${v('wood-dark')}" stroke-width="2" opacity=".9" fill="none"/></g>`
-}
-
-/** A rice clump: fanned blades. (x, y) is the base; h the height. */
-export function riceClump(
-  x: number,
-  y: number,
-  h: number,
-  seed: number,
-  blades = 5,
-  litEdge = false,
-): string {
-  const rnd = mulberry32(seed)
-  let out = ''
-  for (let i = 0; i < blades; i++) {
-    const a = ((i / (blades - 1) - 0.5) * 50 + (rnd() - 0.5) * 8) * (Math.PI / 180)
-    const len = h * (0.75 + rnd() * 0.35)
-    const tipX = x + Math.sin(a) * len
-    const tipY = y - Math.cos(a) * len
-    const base = Math.max(2, h * 0.05)
-    const mid = i === 0 || i === blades - 1 ? v('green-deep') : v('green-mid')
-    const split = 0.6
-    const sx = x + (tipX - x) * split
-    const sy = y + (tipY - y) * split
-    out += polygon(
-      [
-        [x - base, y],
-        [sx, sy],
-        [x + base, y],
-      ],
-      mid,
-    )
-    out += polygon(
-      [
-        [sx - base * 0.5, sy],
-        [tipX, tipY],
-        [sx + base * 0.5, sy],
-      ],
-      i === 0 || i === blades - 1 ? v('green-mid') : v('green-light'),
-    )
-    if (litEdge && i < 2)
-      out += `<path d="M${f(x - base)} ${f(y)}L${f(tipX - base * 0.5)} ${f(tipY)}" stroke="${v('green-crest')}" stroke-width="1.5" opacity=".5" fill="none"/>`
-  }
-  return out
-}
-
-/* ---------- shading helpers (realism pass) ---------- */
-
-/**
- * Cylinder shading across x: edge | mid | light | mid | dark | edge. `hi` is the highlight
- * position (.3 = key light upper-left outdoors, .62 = lamp on the right indoors).
- */
-export const cyl = (
-  id: string,
-  dark: string,
-  mid: string,
-  light: string,
-  hi = 0.3,
-  edge = dark,
-): string =>
-  linGrad(
-    id,
-    [
-      [0, edge],
-      [Math.max(0, hi - 0.22), mid],
-      [hi, light],
-      [Math.min(1, hi + 0.2), mid],
-      [Math.min(1, hi + 0.45), dark],
-      [1, edge],
-    ],
-    0,
-    0,
-    1,
-    0,
-  )
-
-/** Three-band shaded gradient (light / base / dark), vertical by default. */
-export const shade3 = (id: string, light: string, base: string, dark: string, angle = 0): string =>
-  `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1" gradientTransform="rotate(${angle} .5 .5)">${stops(
-    [
-      [0, light],
-      [0.45, base],
-      [1, dark],
-    ],
-  )}</linearGradient>`
-
-/** Soft contact / ambient-occlusion blob gradient (one radial fill, no filters). */
-export const aoGrad = (id: string, color: string, peak = 0.55): string =>
-  radGrad(id, [
-    [0, color, peak],
-    [0.55, color, peak * 0.4],
-    [1, color, 0],
-  ])
-
-export const shadow = (
-  cx: number,
-  cy: number,
-  rx: number,
-  ry: number,
-  gradId: string,
-  o = 1,
-): string => ellipse(cx, cy, rx, ry, `url(#${gradId})`, o === 1 ? '' : `opacity="${f(o)}"`)
-
-/**
- * Soft shadow without gradients: three concentric ellipses with per-primitive fill-opacity
- * (never a <g opacity>, which would force a saveLayer). Centre alpha ~= `alpha`.
- */
-export function softShadow(
-  cx: number,
-  cy: number,
-  rx: number,
-  ry: number,
-  alpha = 0.3,
-  color = '#0b0f12',
-): string {
-  const rings: readonly (readonly [number, number])[] = [
-    [1, 0.28],
-    [0.7, 0.36],
-    [0.42, 0.5],
-  ]
-  return rings
-    .map(([m, share]) =>
-      ellipse(cx, cy, rx * m, ry * m, color, `fill-opacity="${f(alpha * share)}"`),
-    )
-    .join('')
-}
-
-/** Directional cast shadow: three copies of the polygon stepped along (dx, dy) = penumbra. */
-export function castShadow(
-  pts: readonly P2[],
-  dx: number,
-  dy: number,
-  alpha = 0.25,
-  color = '#0b0f12',
-): string {
-  const steps: readonly (readonly [number, number])[] = [
-    [0, 0.55],
-    [0.5, 0.3],
-    [1, 0.15],
-  ]
-  return steps
-    .map(([k, share]) =>
-      polygon(
-        pts,
-        color,
-        `fill-opacity="${f(alpha * share)}" transform="translate(${f(dx * k)} ${f(dy * k)})"`,
-      ),
-    )
-    .join('')
-}
-
-/** Repeating fold gradient for cloth (noren, coat): n folds across the bounding box. */
-export const folds = (id: string, base: string, lit: string, dark: string, n = 5): string =>
-  `<linearGradient id="${id}" x1="0" y1="0" x2="${f(1 / n)}" y2="0" spreadMethod="repeat">${stops([
-    [0, base],
-    [0.35, lit],
-    [0.5, base],
-    [0.8, dark],
-    [1, base],
-  ])}</linearGradient>`
-
-/** Vertical fade rect: from color/alpha a at the top to b at the bottom. */
-export const fadeGrad = (id: string, color: string, a: number, b: number): string =>
-  linGrad(id, [
-    [0, color, a],
-    [1, color, b],
-  ])
-
-/* ---------- texture helpers (realism pass) ---------- */
+/* ---------- texture tiles ---------- */
 
 /**
  * Grid of tile images over a rect (design px); `tw`/`th` = design px per repeat. Images get their
@@ -536,7 +131,7 @@ export function texRect(
   th = tw,
 ): string {
   if (TEX.level === 'off') return ''
-  if (TEX.level === 'small' && (id === 'plaster' || id === 'water' || id === 'wash')) return ''
+  if (TEX.level === 'small' && id === 'wash') return ''
   if (TEX.single)
     return `<g class="tex"><image data-tex="${id}" x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="none" opacity="${opacity}"/></g>`
   let out = ''
@@ -546,17 +141,6 @@ export function texRect(
   // Grouped so the stage can hide textures once a part is magnified past TEX_MAX_SCALE.
   return `<g class="tex">${out}</g>`
 }
-
-/** A filled shape with texture images clipped to it (one clipPath per surface). */
-export const textured = (
-  clipId: string,
-  shape: (fill: string, extra?: string) => string,
-  fill: string,
-  tex: string,
-): string =>
-  tex
-    ? `<clipPath id="${clipId}">${shape('none')}</clipPath>${shape(fill)}<g clip-path="url(#${clipId})">${tex}</g>`
-    : shape(fill)
 
 /* ---------- ink and wash (brush pass) ---------- */
 
@@ -740,7 +324,15 @@ export function hatchField(
 }
 
 export interface WashOpts {
+  /**
+   * Fill opacity. At or above 0.4 the wash is a SURFACE: an opaque core (>= .88) with a
+   * translucent bleed halo around it; below 0.4 it is a GLAZE (reflection, mist, bloom) drawn
+   * as one translucent shape. `glaze` / `bleed` override the heuristic.
+   */
   opacity?: number
+  glaze?: boolean
+  /** halo width in px past the polygon (surfaces only); 0 = none */
+  bleed?: number
   /** pigment pooling at the edge: rim stroke width in px (0 = none) */
   rim?: number
   rimOpacity?: number
@@ -752,30 +344,53 @@ export interface WashOpts {
   extra?: string
 }
 
+const centroidOf = (pts: readonly P2[]): P2 => {
+  let cx = 0
+  let cy = 0
+  for (const p of pts) {
+    cx += p[0]
+    cy += p[1]
+  }
+  return [cx / pts.length, cy / pts.length]
+}
+
+/** Points pushed `d` px away from the centroid (an approximate outline offset). */
+export function expandPts(pts: readonly P2[], d: number): P2[] {
+  const [cx, cy] = centroidOf(pts)
+  return pts.map(([x, y]) => {
+    const dx = x - cx
+    const dy = y - cy
+    const m = Math.hypot(dx, dy) || 1
+    return [x + (dx / m) * d, y + (dy / m) * d]
+  })
+}
+
 /**
- * Watercolour wash: a wobbly translucent polygon with a pooled rim and an optional bloom.
- * Offset washes a few px from their ink so colour bleeds past the line and leaves paper gaps.
+ * Watercolour wash. A surface wash is an opaque core with a translucent halo bleeding 3 to 8 px
+ * past its edge (colour running past the line, paper showing at the seam) and a pooled rim; a
+ * glaze is one translucent shape. Overlapping surface washes stay solid instead of stacking
+ * into transparency.
  */
 export function wash(pts: readonly P2[], color: string, o: WashOpts): string {
   if (pts.length < 3) return ''
   const amp = o.amp ?? 6
   const rim = o.rim ?? 1.2
+  const op = o.opacity ?? 0.9
+  const glaze = o.glaze ?? op < 0.4
+  const bleed = o.bleed ?? (glaze ? 0 : 5)
+  const coreOp = glaze ? op : Math.max(op, 0.88)
   const stroke =
     rim > 0
       ? ` stroke="${color}" stroke-opacity="${f(o.rimOpacity ?? 0.35)}" stroke-width="${f(rim)}" stroke-linejoin="round"`
       : ''
-  let out = `<path d="${wobbly(pts, amp, o.seed)}" fill="${color}" fill-opacity="${f(o.opacity ?? 0.55)}"${stroke} ${o.extra ?? ''}/>`
+  let out = ''
+  if (bleed > 0)
+    out += `<path d="${wobbly(expandPts(pts, bleed), amp * 1.4, o.seed + 3)}" fill="${color}" fill-opacity="${f(Math.min(0.45, op * 0.45))}"/>`
+  out += `<path d="${wobbly(pts, amp, o.seed)}" fill="${color}" fill-opacity="${f(coreOp)}"${stroke} ${o.extra ?? ''}/>`
   const b = o.bloom
   if (b) {
     const s = b.scale ?? 0.6
-    let cx = 0
-    let cy = 0
-    for (const p of pts) {
-      cx += p[0]
-      cy += p[1]
-    }
-    cx /= pts.length
-    cy /= pts.length
+    const [cx, cy] = centroidOf(pts)
     const inner: P2[] = pts.map(([px, py]) => [
       cx + (px - cx) * s + (b.dx ?? 0),
       cy + (py - cy) * s + (b.dy ?? 0),
@@ -843,13 +458,44 @@ export interface InkStyle {
   opacity: number
 }
 export function inkStyle(depth: number): InkStyle {
-  if (depth <= 0) return { w: 6, color: v('ink'), opacity: 1 }
-  if (depth <= 600) return { w: 4, color: v('ink'), opacity: 1 }
-  if (depth <= 2000) return { w: 3, color: v('ink'), opacity: 1 }
-  if (depth <= 3500) return { w: 2.2, color: v('ink-mid'), opacity: 0.9 }
-  if (depth <= 5000) return { w: 1.6, color: v('ink-mid'), opacity: 0.85 }
-  if (depth <= 9000) return { w: 1.2, color: v('ink-far'), opacity: 0.7 }
+  if (depth <= 0) return { w: 4.5, color: v('ink'), opacity: 1 }
+  if (depth <= 600) return { w: 3.2, color: v('ink'), opacity: 1 }
+  if (depth <= 2000) return { w: 2.6, color: v('ink'), opacity: 0.95 }
+  if (depth <= 3500) return { w: 2, color: v('ink-mid'), opacity: 0.9 }
+  if (depth <= 5000) return { w: 1.5, color: v('ink-mid'), opacity: 0.85 }
+  if (depth <= 9000) return { w: 1.1, color: v('ink-far'), opacity: 0.7 }
   return { w: 0.9, color: v('ink-far'), opacity: 0.6 }
+}
+
+/** Straight tapered stroke per edge of a polygon (rectilinear shapes: frames, mats, boards). */
+export function inkEdges(
+  pts: readonly P2[],
+  w: number,
+  seed: number,
+  color?: string,
+  opacity?: number,
+  close = true,
+): string {
+  let out = ''
+  const n = pts.length
+  const edges = close ? n : n - 1
+  for (let i = 0; i < edges; i++) {
+    const a = pts[i]
+    const b = pts[(i + 1) % n]
+    if (!a || !b) continue
+    const mx = (a[0] + b[0]) / 2
+    const my = (a[1] + b[1]) / 2
+    out += brush([a, [mx, my], b], {
+      w,
+      seed: seed + i * 17,
+      wobble: 0.8,
+      taper: [0.35, 0.25],
+      peak: 0.5,
+      color,
+      opacity,
+    })
+  }
+  return out
 }
 
 /* ---------- ink recipes shared by several layers ---------- */
@@ -861,9 +507,10 @@ export interface InkRecipeOpts {
 }
 
 /**
- * Sugi cedar in ink: each bough tier is a green wash (offset down-right so it bleeds past the
- * line), one open tapered stroke for the hem-crown-hem silhouette, and needle marks along the
- * hem; the trunk is a wood wash between two edge strokes. ~70 elements at detail 1.
+ * Sugi cedar in ink: each drooping tier is a dark needle mass with a lighter crest mass on its
+ * upper-left (solid washes, ragged edges), a silhouette broken into short tapered hem strokes
+ * with gaps, and needle marks hanging from the hem; a wood-wash trunk between two edge strokes
+ * with a few branch strokes reaching into the tiers. ~150 elements at detail 1.
  */
 export function inkCedar(
   x: number,
@@ -876,99 +523,171 @@ export function inkCedar(
   const ink = o.ink ?? inkStyle(0)
   const detail = o.detail ?? 1
   const tiers = o.tiers ?? 6
+  const dark = o.wash ?? v('cedar-wash')
+  const light = o.wash2 ?? v('cedar-wash-2')
   const trunkH = 150 * scale
   const tierH = 105 * scale
+  const tw0 = 22 * scale
   let top = baseY - trunkH + 34 * scale
-  let washes = ''
+  let masses = ''
   let lines = ''
   let marks = ''
+  let branches = ''
   for (let i = 0; i < tiers; i++) {
     const tw = (300 - 36 * i) * scale
     const last = i === tiers - 1
     const yb = top
     const yt = top - tierH - (last ? 50 * scale : 0)
-    const droop = (16 + rnd() * 10) * scale
-    const pts: P2[] = [
-      [x - tw / 2, yb + droop],
-      [x - tw * 0.28, yb - tierH * 0.3],
-      [x, yt],
-      [x + tw * 0.28, yb - tierH * 0.3],
-      [x + tw / 2, yb + droop],
+    const droop = (18 + rnd() * 12) * scale
+    const jit = () => (rnd() - 0.5) * 14 * scale
+    // ragged hem: tips, three sagging hem points, shoulders, crown
+    const hem: P2[] = [
+      [x - tw / 2, yb + droop * 0.6],
+      [x - tw * 0.3, yb + droop + jit()],
+      [x - tw * 0.08, yb + droop * 0.5 + jit()],
+      [x + tw * 0.14, yb + droop + jit()],
+      [x + tw * 0.34, yb + droop * 0.7 + jit()],
+      [x + tw / 2, yb + droop * 0.5],
     ]
-    const wc = i % 2 ? (o.wash2 ?? v('cedar-wash-2')) : (o.wash ?? v('cedar-wash'))
-    washes += wash(
+    const body: P2[] = [
+      ...hem,
+      [x + tw * 0.3, yb - tierH * 0.35],
+      [x + tw * 0.08, yt + 8 * scale],
+      [x - tw * 0.1, yt + 4 * scale],
+      [x - tw * 0.32, yb - tierH * 0.3],
+    ]
+    masses += wash(body, dark, {
+      seed: seed + 40 + i,
+      amp: 11 * scale,
+      opacity: 0.92,
+      rim: 0,
+      bleed: 4 * scale,
+    })
+    // lit crest mass on the upper left
+    masses += wash(
       [
-        [x - tw / 2 + 8 * scale, yb + droop + 6 * scale],
-        [x - tw * 0.3, yb - tierH * 0.25],
-        [x + 4 * scale, yt + 10 * scale],
-        [x + tw * 0.3, yb - tierH * 0.25],
-        [x + tw / 2 + 8 * scale, yb + droop + 6 * scale],
-        [x, yb + droop * 0.9 + 6 * scale],
+        [x - tw * 0.36, yb - tierH * 0.2],
+        [x - tw * 0.16, yb - tierH * 0.05],
+        [x + tw * 0.06, yb - tierH * 0.3],
+        [x - tw * 0.02, yt + 20 * scale],
+        [x - tw * 0.24, yb - tierH * 0.55],
       ],
-      wc,
-      { seed: seed + 40 + i, amp: 8 * scale, opacity: 0.6, rim: 1 },
+      light,
+      { seed: seed + 60 + i, amp: 9 * scale, opacity: 0.85, rim: 0, bleed: 3 * scale },
     )
-    lines += brush(pts, {
-      w: ink.w * (last ? 0.8 : 1),
+    // broken silhouette: two hem strokes with a gap, a shoulder flick, the crown
+    const hemL: P2[] = [hem[0] ?? [x, yb], hem[1] ?? [x, yb], hem[2] ?? [x, yb]]
+    const hemR: P2[] = [hem[3] ?? [x, yb], hem[4] ?? [x, yb], hem[5] ?? [x, yb]]
+    lines += brush(hemL, {
+      w: ink.w,
       seed: seed + i * 7,
-      wobble: 2.5 * scale,
+      wobble: 2 * scale,
       color: ink.color,
       opacity: ink.opacity,
-      taper: [0.1, 0.1],
-      peak: 0.5,
+      taper: [0.05, 0.2],
+      peak: 0.6,
     })
-    const nm = Math.round(9 * detail)
+    lines += brush(hemR, {
+      w: ink.w * 0.9,
+      seed: seed + i * 7 + 1,
+      wobble: 2 * scale,
+      color: ink.color,
+      opacity: ink.opacity,
+      taper: [0.2, 0.05],
+      peak: 0.4,
+    })
+    lines += brush(
+      [
+        [x + tw * 0.34, yb - tierH * 0.28],
+        [x + tw * 0.16, yt + 14 * scale],
+        [x, yt],
+      ],
+      {
+        w: ink.w * 0.7,
+        seed: seed + i * 7 + 2,
+        wobble: 1.5 * scale,
+        color: ink.color,
+        opacity: ink.opacity * 0.9,
+        taper: [0.1, 0],
+        peak: 0.35,
+      },
+    )
+    // needles hanging from the hem, denser near the tips
+    const nm = Math.round(14 * detail)
     for (let k = 0; k < nm; k++) {
       const u = (k + 0.5) / nm
       const hx = x - tw / 2 + tw * u
-      const hy = yb + droop * (1 - Math.abs(u - 0.5) * 1.6) - 4 * scale
+      const hy = yb + droop * (0.9 - Math.abs(u - 0.5) * 0.8) - 2 * scale
       marks += hatch(
-        hx,
+        hx + (rnd() - 0.5) * 6 * scale,
         hy,
-        (14 + rnd() * 10) * scale,
-        Math.PI / 2 + (rnd() - 0.5) * 0.7,
-        ink.w * 0.5,
+        (12 + rnd() * 12) * scale,
+        Math.PI / 2 + (u - 0.5) * 0.9 + (rnd() - 0.5) * 0.5,
+        ink.w * 0.45,
         ink.color,
-        0.7 * ink.opacity,
+        0.75 * ink.opacity,
+      )
+    }
+    if (i < tiers - 1) {
+      const dir = i % 2 ? 1 : -1
+      branches += brush(
+        [
+          [x + dir * tw0 * 0.4, yb - tierH * 0.15],
+          [x + dir * tw * 0.22, yb - tierH * 0.05 + 6 * scale],
+          [x + dir * tw * 0.4, yb + 4 * scale],
+        ],
+        {
+          w: ink.w * 0.55,
+          seed: seed + 80 + i,
+          wobble: 1.2 * scale,
+          color: ink.color,
+          opacity: ink.opacity * 0.8,
+          taper: [0.6, 0],
+          peak: 0.2,
+        },
       )
     }
     top = yt + 42 * scale
   }
-  const tw = 22 * scale
   const trunk =
-    washRect(x - tw / 2, baseY - trunkH, tw, trunkH, o.trunk ?? v('wood-wash-dark'), {
+    washRect(x - tw0 / 2, baseY - trunkH, tw0, trunkH, o.trunk ?? v('wood-wash-dark'), {
       seed: seed + 98,
       amp: 3 * scale,
-      opacity: 0.6,
+      opacity: 0.92,
       rim: 0,
+      bleed: 2 * scale,
     }) +
     brush(
       [
-        [x - tw / 2, baseY - trunkH],
-        [x - tw / 2 - 2 * scale, baseY],
+        [x - tw0 / 2, baseY - trunkH],
+        [x - tw0 / 2 - 2 * scale, baseY],
       ],
       {
-        w: ink.w * 0.9,
+        w: ink.w * 0.8,
         seed: seed + 99,
         wobble: 1.5 * scale,
         color: ink.color,
         opacity: ink.opacity,
+        taper: [0.3, 1],
+        peak: 0.7,
       },
     ) +
     brush(
       [
-        [x + tw / 2, baseY - trunkH],
-        [x + tw / 2 + 3 * scale, baseY],
+        [x + tw0 / 2, baseY - trunkH],
+        [x + tw0 / 2 + 3 * scale, baseY],
       ],
       {
-        w: ink.w * 0.7,
+        w: ink.w * 0.6,
         seed: seed + 100,
         wobble: 1.5 * scale,
         color: ink.color,
         opacity: ink.opacity,
+        taper: [0.3, 1],
+        peak: 0.7,
       },
     )
-  return `<g class="cedar">${washes}${trunk}${lines}${marks}</g>`
+  return `<g class="cedar">${trunk}${masses}${branches}${lines}${marks}</g>`
 }
 
 /** Broadleaf mass in ink: wash blob, a closed contour, three interior strokes, leaf marks. */
@@ -988,7 +707,20 @@ export function inkFoliage(
     o.wash ?? v('hedge'),
     { seed: seed + 1, amp: w * 0.06, opacity: 0.6, rim: 1 },
   )
-  out += contour(pts, ink.w, seed + 2, ink.color, ink.opacity)
+  // broken silhouette: three open strokes around the mass with gaps between them
+  for (let k = 0; k < 3; k++) {
+    const a = pts[(k * 3) % pts.length] ?? [x, y]
+    const b = pts[(k * 3 + 1) % pts.length] ?? [x, y]
+    const c = pts[(k * 3 + 2) % pts.length] ?? [x, y]
+    out += brush([a, b, c], {
+      w: ink.w * 0.9,
+      seed: seed + 20 + k,
+      wobble: 1.5,
+      color: ink.color,
+      opacity: ink.opacity,
+      taper: [0.05, 0.05],
+    })
+  }
   for (let i = 0; i < 3; i++) {
     const a = rnd() * Math.PI
     const r = w * (0.12 + rnd() * 0.2)
@@ -1051,16 +783,17 @@ export function inkHydrangea(
       opacity: 0.45,
       rim: 0.8,
     })
-    out +=
-      hatch(fx - fr, fy, fr * 2, (rnd() - 0.5) * 0.5, ink.w * 0.5, ink.color, 0.7 * ink.opacity) +
-      hatch(
-        fx,
-        fy - fr,
-        fr * 2,
-        Math.PI / 2 + (rnd() - 0.5) * 0.5,
-        ink.w * 0.5,
+    // a dark centre on every floret, an ink flick on some
+    out += circle(fx, fy, fr * 0.22, ink.color, `fill-opacity="${f(0.6 * ink.opacity)}"`)
+    if (rnd() < 0.4)
+      out += hatch(
+        fx - fr * 0.9,
+        fy + fr * 0.3,
+        fr * 1.6,
+        (rnd() - 0.5) * 0.9,
+        ink.w * 0.4,
         ink.color,
-        0.7 * ink.opacity,
+        0.6 * ink.opacity,
       )
   }
   if (o.leaves !== false) {
@@ -1101,7 +834,11 @@ export function inkHydrangea(
   return `<g class="hydrangea">${out}</g>`
 }
 
-/** Dry-stone retaining wall: a grey wash, then `rows` courses of wobbly ink stones with a few paler ones. */
+/**
+ * Dry-stone retaining wall: a grey wash, then `rows` courses of irregular flat stones (five to
+ * six-point polygons outlined edge by edge so corners stay corners), a few paler ones, and
+ * shadow glazes under each course.
+ */
 export function inkStoneWall(
   x0: number,
   x1: number,
@@ -1118,36 +855,45 @@ export function inkStoneWall(
   let out = washRect(x0, y, x1 - x0, h, o.wash ?? v('stone-wall'), {
     seed,
     amp: 3,
-    opacity: 0.55,
-    rim: 1,
+    opacity: 0.9,
+    rim: 0,
+    bleed: 3,
   })
+  let n = 0
   for (let r = 0; r < rows; r++) {
-    let x = x0 - (r % 2) * rowH * 0.6
+    let x = x0 - (r % 2) * rowH * 0.7
     const ry = y + r * rowH
-    while (x < x1) {
-      const sw = rowH * (1.2 + rnd() * 1.2)
-      const pts: P2[] = [
-        [x + 2, ry + 2],
-        [x + sw - 2, ry + 2],
-        [x + sw - 2, ry + rowH - 2],
-        [x + 2, ry + rowH - 2],
-      ]
-      out += brush(pts, {
-        w: ink.w,
-        seed: seed + r * 131 + Math.round(x),
-        wobble: 1.2,
-        close: true,
-        color: ink.color,
-        opacity: ink.opacity,
+    // shadow glaze under the course above
+    if (r > 0)
+      out += washRect(x0, ry, x1 - x0, rowH * 0.3, v('stone-wall-dark'), {
+        seed: seed + 300 + r,
+        amp: 2,
+        opacity: 0.3,
+        rim: 0,
       })
-      if (rnd() < 0.5 * detail)
-        out += wash(pts, '#ffffff', {
-          seed: seed + 7 + Math.round(x),
-          amp: 2,
-          opacity: 0.12,
+    while (x < x1) {
+      const sw = rowH * (1.3 + rnd() * 1.4)
+      const inset = 1.5 + rnd() * 2
+      const midX = x + sw * (0.4 + rnd() * 0.2)
+      const pts: P2[] = [
+        [x + inset + rnd() * 3, ry + inset + rnd() * 3],
+        [midX, ry + inset - 1 + rnd() * 2],
+        [x + sw - inset - rnd() * 3, ry + inset + rnd() * 3],
+        [x + sw - inset + rnd() * 2, ry + rowH * (0.55 + rnd() * 0.2)],
+        [x + sw - inset - rnd() * 4, ry + rowH - inset - rnd() * 2],
+        [x + inset + rnd() * 4, ry + rowH - inset - rnd() * 3],
+      ]
+      if (n % 3 === 0)
+        out += wash(pts, rnd() < 0.5 ? '#ffffff' : v('stone-wall-dark'), {
+          seed: seed + 7 + n,
+          amp: 1.5,
+          opacity: 0.2,
           rim: 0,
         })
-      x += sw
+      if (detail >= 0.5 || n % 2 === 0)
+        out += inkEdges(pts, ink.w * 0.8, seed + r * 131 + n, ink.color, ink.opacity * 0.85)
+      x += sw + 1 + rnd() * 2
+      n++
     }
   }
   return `<g class="stone-wall">${out}</g>`

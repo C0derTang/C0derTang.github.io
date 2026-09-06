@@ -11,12 +11,13 @@ interface Band {
   width: number
   alpha: number
   speed: number // px/s
+  ink: string // stroke tone (ink weight by depth)
 }
 
 const BANDS: readonly Band[] = [
-  { density: 60, len: 0.02, width: 1, alpha: 0.1, speed: 900 },
-  { density: 90, len: 0.035, width: 1.5, alpha: 0.18, speed: 1400 },
-  { density: 50, len: 0.06, width: 2, alpha: 0.28, speed: 2200 },
+  { density: 60, len: 0.024, width: 0.8, alpha: 0.14, speed: 900, ink: PALETTE.inkFar },
+  { density: 90, len: 0.042, width: 1.1, alpha: 0.22, speed: 1400, ink: PALETTE.rainInk },
+  { density: 50, len: 0.072, width: 1.5, alpha: 0.32, speed: 2200, ink: PALETTE.ink },
 ]
 
 interface Drop {
@@ -96,7 +97,7 @@ export function createRain(canvas: Canvas2D, quality: Quality): Fx {
         const list = bands[i]
         if (!list) return
         const len = b.len * H * stretch
-        ctx.strokeStyle = rgba(PALETTE.rainStreak, b.alpha * alpha * fade)
+        ctx.strokeStyle = rgba(b.ink, b.alpha * alpha * fade)
         ctx.lineWidth = b.width
         ctx.beginPath()
         const groundY = i === 2 ? state.rain.groundY : null
@@ -136,8 +137,8 @@ export function createRain(canvas: Canvas2D, quality: Quality): Fx {
               v: 0.9 + rnd() * 0.2,
             })
         }
-        ctx.strokeStyle = rgba(PALETTE.rainStreak, 0.45 * alpha)
-        ctx.lineWidth = 2.5
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.45 * alpha)
+        ctx.lineWidth = 1.6
         ctx.beginPath()
         for (const d of drips) {
           if (dt > 0) {
@@ -149,7 +150,7 @@ export function createRain(canvas: Canvas2D, quality: Quality): Fx {
             }
           }
           ctx.moveTo(d.x, d.y)
-          ctx.lineTo(d.x, d.y - 14)
+          ctx.lineTo(d.x, d.y - 9)
         }
         ctx.stroke()
       }
@@ -162,7 +163,7 @@ export function createRain(canvas: Canvas2D, quality: Quality): Fx {
             paper.push({ x: rnd(), y: rnd() * H, v: 0.8 + rnd() * 0.4 })
         ctx.save()
         clipRects(ctx, paperClip)
-        ctx.strokeStyle = 'rgba(60,50,40,.06)'
+        ctx.strokeStyle = 'rgba(58,58,56,.06)'
         ctx.lineWidth = 6
         ctx.lineCap = 'round'
         ctx.beginPath()
@@ -194,7 +195,7 @@ export function createRain(canvas: Canvas2D, quality: Quality): Fx {
       }
 
       // Splash rings.
-      ctx.lineWidth = 1.2
+      ctx.lineWidth = 1
       for (let i = rings.length - 1; i >= 0; i--) {
         const r = rings[i]
         if (!r) continue
@@ -204,7 +205,7 @@ export function createRain(canvas: Canvas2D, quality: Quality): Fx {
           continue
         }
         const rx = 2 + 12 * u
-        ctx.strokeStyle = rgba(PALETTE.splash, 0.35 * (1 - u) * alpha)
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.35 * (1 - u) * alpha)
         ctx.beginPath()
         ctx.ellipse(r.x, r.y, rx, rx * 0.33, 0, 0, Math.PI * 2)
         ctx.stroke()

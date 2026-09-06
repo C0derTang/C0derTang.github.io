@@ -1,41 +1,24 @@
 :root {
-  /* sky / rain */
-  --sky-top: #6d7d8c;
-  --sky-mid: #8d9aa5;
-  --sky-low: #b4bcc1;
-  --rain-streak: #dfe6ea;
+  /* rain and mist */
   --mist: #c5cdd0;
 
   /* foliage */
   --green-deep: #2f4a3e;
-  --green-mid: #4d6b4f;
-  --green-light: #7f9a5d;
-  --green-far: #6c8a86;
 
-  /* wood, thatch, plaster */
+  /* house materials (wash bases) */
   --wood-dark: #3a2a22;
-  --wood-mid: #6b4a36;
-  --wood-light: #9a7451;
-  --thatch: #6f6048;
-  --thatch-dark: #4f4536;
-  --thatch-light: #8a7a5c;
   --plaster: #bdb097;
-  --plaster-int: #a89c85;
 
   /* interior */
   --tatami: #b3aa6c;
-  --tatami-shadow: #8c8552;
-  --tatami-border: #3f3a3a;
   --paper: #f1e9d6;
   --paper-lit: #f7e6c0;
   --paper-cool: #d9d5c8;
   --lamp: #f2b45a;
   --lamp-glow: #e89a3c;
   --ember: #d9633a;
-  --indigo-cloth: #3f4a6b;
 
   /* paddy */
-  --paddy-reflect: #9aa8a6;
   --paddy-water: #5f7a76;
   --paddy-water-deep: #3e5753;
   --mud: #4a3d2e;
@@ -46,21 +29,11 @@
   --uw-mid: #2f6b6a;
   --uw-deep: #1c3f4e;
   --uw-abyss: #142a3a;
-  --uw-ray: #cfe8dd;
-  --uw-stem: #3f6d63;
-  --uw-stem-near: #2b5b56;
 
   /* fish */
-  --koi-white: #f2ece0;
-  --koi-orange: #e07a3a;
-  --koi-orange-deep: #b8532a;
-  --koi-ink: #2a2a2e;
-  --loach: #4d4a3a;
-  --loach-belly: #9c8f6c;
   --loach-spot: #2f2c22;
   --funa: #7d8a70;
   --funa-belly: #c7cbb5;
-  --funa-fin: #5e6a55;
 
   /* UI */
   --ink: #1f2426;
@@ -95,35 +68,7 @@
 
 /* light model (realism pass) */
 :root {
-  --shade-cool: #3b4652;
-  --shade-warm: #3a2a22;
-  --ao-cool: #141a20;
-  --ao-warm: #201610;
-  --rim: #dfe6ea;
-  --rim-warm: #f7e6c0;
-  --rim-uw: #cfe8dd;
-  --bounce-warm: #a08a6a;
-  --wet: #0e1214;
   --water-sheen: #d8dee0;
-  --plaster-lit: #cfc4ab;
-  --plaster-shadow: #8f8570;
-  --wood-lit: #7f5c44;
-  --bark-dark: #2c1f18;
-  --bark-light: #5c4536;
-  --green-shadow: #22362e;
-  --green-crest: #93a86a;
-  --thatch-ridge: #a8967a;
-  --stone: #6e7370;
-  --stone-light: #8a8f8c;
-  --stone-dark: #4f5451;
-  --mud-dark: #33291f;
-  --tatami-lit: #c4bb7c;
-  --koi-white-lit: #fbf7ee;
-  --koi-white-shade: #b9b0a0;
-  --koi-orange-lit: #f0a066;
-  --funa-back: #5d6a52;
-  --uw-caustic: #d9f0e6;
-  --uw-silt: #c8d6c9;
 }
 
 /* ink and wash (brush pass): paper ground, ink by depth, washes from the rainy-valley photo */
