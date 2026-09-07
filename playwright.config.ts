@@ -27,7 +27,10 @@ export default defineConfig({
         channel: 'chrome',
         headless: false,
         viewport: { width: 1440, height: 900 },
-        deviceScaleFactor: 1,
+        deviceScaleFactor: 1.5,
+        launchOptions: {
+          args: ['--mute-audio', ...(process.platform === 'darwin' ? ['--use-angle=metal'] : [])],
+        },
       },
     },
   ],

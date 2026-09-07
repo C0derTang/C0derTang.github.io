@@ -25,8 +25,29 @@ test('plays every beat without console errors', async ({ page }, testInfo) => {
     })
   }
   const forward: Record<number, string> = {}
+  let daylight: string | undefined
   for (const f of FRACTIONS) {
     forward[f] = await poseAt(f)
+    if (f < 0.79) {
+      // Walking through the doors must not relight the outdoor world or turn its wind.
+      const current = await page.evaluate(() => {
+        const s = window.__scene?.state
+        if (!s) return ''
+        return JSON.stringify(
+          {
+            fog: s.fog,
+            sun: s.sun,
+            sky: s.sky,
+            environment: s.environment,
+            grade: s.grade,
+            wind: [s.rain.windX, s.rain.windZ],
+          },
+          (_key, value: unknown) => (typeof value === 'number' ? Number(value.toFixed(8)) : value),
+        )
+      })
+      daylight ??= current
+      expect(current).toBe(daylight)
+    }
     await page.screenshot({ path: testInfo.outputPath(`t-${f}.png`) })
   }
   // The dive flips the underwater state once the camera is below the surface.
@@ -46,6 +67,12 @@ test('reads without JavaScript', async ({ browser }) => {
   const page = await context.newPage()
   await page.goto('/')
   await expect(page.locator('h1')).toHaveText('Christopher Tang')
+  await expect(page.locator('#curtain')).toBeHidden()
+  await expect(page.locator('[data-slot="underwater"]')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'GitHub' })).toBeVisible()
+  await expect(page.locator('.scroll-track')).toBeHidden()
+  await page.getByRole('link', { name: 'Walk again' }).click()
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
   await expect(page.locator('#gl')).toHaveCount(1)
   await context.close()
 })

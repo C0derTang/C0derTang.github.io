@@ -8,10 +8,15 @@ from Poly Haven and ambientCG (see `public/assets/ATTRIBUTION.md`). Desktop firs
 
 Live: https://c0dertang.github.io/
 
+Use **Enable sound** to hear recorded light rain and leaf droplets, with a volume control.
+The mix follows the walk: roof rain and fire indoors, rain over the fields outside, and
+muffled sound underwater. Sliding-door sounds follow door movement. Audio starts only after
+activation; the scene stays usable if recordings cannot load.
+
 ## Develop
 
 ```sh
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev        # http://localhost:5173  (pnpm dev:lan to test on a phone)
 pnpm build      # typecheck + production build to dist/
 pnpm preview    # serve dist/ on http://localhost:4173
@@ -22,7 +27,8 @@ pnpm bench      # frame-time sweep in the installed Chrome (real GPU)
 
 Dev URL hooks: `?debug` (HUD with camera, beat, draw calls), `?t=0.35` (seek), `&freeze`
 (deterministic frame), `?bench=8` (frame-time sweep, report in `window.__bench`),
-`?tier=high|low`, `?dpr=<n>`, `?post=off` (no depth of field).
+`?tier=high|low`, `?dpr=<n>`, `?post=off` (disable postprocessing). Depth of field is disabled
+in every quality tier so nearby puddles and distant scenery remain clear.
 
 Requires Node >= 22.13 and pnpm 10 (pinned in `package.json`; pnpm switches to it automatically).
 Architecture, the scroll-beat model and conventions are in `CLAUDE.md`.

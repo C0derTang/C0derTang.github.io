@@ -2,6 +2,7 @@ import {
   BackSide,
   BoxGeometry,
   type BufferGeometry,
+  CatmullRomCurve3,
   Color,
   ConeGeometry,
   CylinderGeometry,
@@ -15,14 +16,19 @@ import {
   Object3D,
   SphereGeometry,
   TorusGeometry,
+  TubeGeometry,
   Vector2,
+  Vector3,
 } from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import type { Quality } from '../../config/quality'
 import { clamp } from '../../util/math'
 import type { Materials } from '../materials'
 import type { SceneState } from '../state'
 import type { WorldPart } from './types'
+import { createHearthFire, HEARTH_CENTER, hearthFlicker } from './fire'
+import { FRONT_WINDOWS } from './house'
 
 /**
  * The room interior: floor, ceiling, the back shoji wall (with the sliding panels the doors
@@ -214,7 +220,7 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
     roughness: 0.25,
     metalness: 0.05,
     emissive: new Color('#aab8ba'),
-    emissiveIntensity: 0.4,
+    emissiveIntensity: 0.04,
     side: DoubleSide,
   })
   const voidDark = new MeshStandardMaterial({
@@ -223,6 +229,27 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
     side: BackSide,
   })
   const lampPaper = mats.paper.clone()
+  lampPaper.emissive.set('#f2b45a')
+
+  const rounded = (
+    w: number,
+    h: number,
+    d: number,
+    x: number,
+    y: number,
+    z: number,
+    dark = false,
+  ): void => {
+    const geo = new RoundedBoxGeometry(w, h, d, 2, Math.min(w, h, d, 0.12) * 0.18)
+    geo.applyMatrix4(xform(x, y, z))
+    b.push(
+      dark ? 'furniture-dark' : 'furniture',
+      dark ? mats.woodDark : mats.wood,
+      geo,
+      false,
+      true,
+    )
+  }
 
   // ---------------------------------------------------------------- floor: tatami + trim ----
   const MAT_W = 0.9
@@ -254,21 +281,86 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   }
   const mats_ = new InstancedMesh(matTemplate, mats.tatami, placements.length)
   const borders = new InstancedMesh(borderTemplate, mats.cloth, placements.length * 2)
+  // The irori is an actual opening: retain the mat weave coordinates on the few cut pieces.
+  const hearthHalf = 0.57
+  const hearthX = HEARTH_CENTER.x
+  const hearthZ = HEARTH_CENTER.z
+  function cutMat(
+    p: { x: number; z: number; ry: number },
+    u0: number,
+    u1: number,
+    v0: number,
+    v1: number,
+    edge = false,
+  ): void {
+    const cos = Math.cos(p.ry)
+    const sin = Math.sin(p.ry)
+    const centerU = (hearthX - p.x) * cos - (hearthZ - p.z) * sin
+    const centerV = (hearthX - p.x) * sin + (hearthZ - p.z) * cos
+    const a = Math.max(u0, centerU - hearthHalf)
+    const c = Math.min(u1, centerU + hearthHalf)
+    const d = Math.max(v0, centerV - hearthHalf)
+    const e = Math.min(v1, centerV + hearthHalf)
+    const rects =
+      a >= c || d >= e
+        ? [[u0, u1, v0, v1]]
+        : [
+            [u0, a, v0, v1],
+            [c, u1, v0, v1],
+            [a, c, v0, d],
+            [a, c, e, v1],
+          ]
+    for (const [left, right, front, back] of rects) {
+      if (left === undefined || right === undefined || front === undefined || back === undefined)
+        continue
+      if (right - left < 0.001 || back - front < 0.001) continue
+      const geo = new BoxGeometry(right - left, MAT_T + (edge ? 0.006 : 0), back - front)
+      const uv = geo.attributes.uv
+      const pos = geo.attributes.position
+      if (uv && pos)
+        for (let i = 8; i <= 15; i++)
+          uv.setXY(
+            i,
+            pos.getX(i) + (left + right + MAT_W) / 2,
+            pos.getZ(i) + (front + back + MAT_L) / 2,
+          )
+      geo.translate((left + right) / 2, 0, (front + back) / 2)
+      geo.applyMatrix4(xform(p.x, FLOOR_Y - MAT_T / 2 + (edge ? 0.003 : 0), p.z, p.ry))
+      b.push(edge ? 'cut-mat-edge' : 'cut-mat', edge ? mats.cloth : mats.tatami, geo, false, true)
+    }
+  }
   let bi = 0
   for (let i = 0; i < placements.length; i++) {
     const p = placements[i]
     if (!p) continue
+    const halfX = p.ry === 0 ? MAT_W / 2 : MAT_L / 2
+    const halfZ = p.ry === 0 ? MAT_L / 2 : MAT_W / 2
+    const cut =
+      Math.abs(p.x - hearthX) < halfX + hearthHalf && Math.abs(p.z - hearthZ) < halfZ + hearthHalf
     dummy.position.set(p.x, FLOOR_Y - MAT_T / 2, p.z)
     dummy.rotation.set(0, p.ry, 0)
-    dummy.scale.setScalar(1)
+    dummy.scale.setScalar(cut ? 0 : 1)
     dummy.updateMatrix()
     mats_.setMatrixAt(i, dummy.matrix)
+    if (cut) cutMat(p, -MAT_W / 2, MAT_W / 2, -MAT_L / 2, MAT_L / 2)
     for (const side of [-1, 1]) {
       dummy.position.set(p.x, FLOOR_Y - MAT_T / 2 + 0.003, p.z)
       dummy.rotation.set(0, p.ry, 0)
+      dummy.scale.setScalar(cut ? 0 : 1)
       dummy.translateX((side * (MAT_W - BORDER_W)) / 2)
       dummy.updateMatrix()
       borders.setMatrixAt(bi++, dummy.matrix)
+      if (cut) {
+        const center = (side * (MAT_W - BORDER_W)) / 2
+        cutMat(
+          p,
+          center - BORDER_W / 2,
+          center + BORDER_W / 2,
+          -(MAT_L - 0.06) / 2,
+          (MAT_L - 0.06) / 2,
+          true,
+        )
+      }
     }
   }
   mats_.castShadow = false
@@ -348,22 +440,37 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   group.add(ceiling)
   for (const z of [-2, -4, -6]) {
     b.box('beam', mats.woodDark, ROOM_X1 - ROOM_X0, 0.3, 0.25, 0, 3.0, z)
+    // Bearing blocks and short knee braces make the beams read as joined structural timber.
+    for (const side of [-1, 1]) {
+      b.box('beam', mats.woodDark, 0.48, 0.1, 0.34, side * 4.96, 2.8, z)
+      // Lower end enters the wall at x ±5.39; upper end meets the bearing at x ±4.88.
+      const run = 0.51
+      const rise = 0.44
+      b.box('beam', mats.woodDark, 0.1, Math.hypot(run, rise), 0.12, side * 5.135, 2.57, z, {
+        rz: side * Math.atan2(run, rise),
+      })
+    }
   }
+  for (let x = -4.8; x < 5; x += 0.6)
+    b.box(
+      'beam',
+      mats.woodDark,
+      0.035,
+      0.055,
+      ROOM_ZN - ROOM_ZF,
+      x,
+      3.155,
+      (ROOM_ZN + ROOM_ZF) / 2,
+      { cast: false },
+    )
   if (quality.tier !== 'low') {
-    const voidGeo = new BoxGeometry(ROOM_X1 - ROOM_X0 - 0.4, 1.6, ROOM_ZN - ROOM_ZF - 0.4)
-    voidGeo.applyMatrix4(xform(0, CEIL_Y + 0.85, (ROOM_ZN + ROOM_ZF) / 2))
+    // Keep the dark attic volume below the hip slopes at the room's outer corners.
+    const voidGeo = new BoxGeometry(ROOM_X1 - ROOM_X0 - 0.4, 0.8, ROOM_ZN - ROOM_ZF - 0.4)
+    voidGeo.applyMatrix4(xform(0, CEIL_Y + 0.45, (ROOM_ZN + ROOM_ZF) / 2))
     const roofVoid = new Mesh(voidGeo, voidDark)
     roofVoid.castShadow = false
     roofVoid.receiveShadow = false
     group.add(roofVoid)
-    for (let i = 0; i < 6; i++) {
-      const x = -4 + i * 1.6
-      b.box('beam', mats.woodDark, 0.12, 0.16, 1.4, x, 3.35, -3.5, {
-        rx: 0.55,
-        cast: false,
-        receive: false,
-      })
-    }
   }
 
   // ------------------------------------------------------------ back wall: shoji + window ----
@@ -417,7 +524,7 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
       Z_FIXED,
       0.05,
     )
-    fixedPanes.push(paneGeometry(x0, x1, PANEL_Y0, PANEL_Y1, Z_FIXED + 0.03))
+    fixedPanes.push(paneGeometry(x0, x1, PANEL_Y0, PANEL_Y1, Z_FIXED - 0.018))
   }
   const fixedPaneGeo = mergeGeometries(fixedPanes, false)
   if (fixedPaneGeo) {
@@ -431,6 +538,9 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   function makeSlidingPanel(half: number): Group {
     const frameParts: BufferGeometry[] = []
     latticePanel((g) => frameParts.push(g), -half, half, PANEL_Y0, PANEL_Y1, 0, 0.05)
+    const pull = mergeVertices(new RoundedBoxGeometry(0.06, 0.16, 0.018, 2, 0.012))
+    pull.applyMatrix4(xform(-half + 0.08, 1.2, 0.025))
+    frameParts.push(pull)
     const frameGeo = mergeGeometries(frameParts, false)
     const grp = new Group()
     if (frameGeo) {
@@ -439,7 +549,7 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
       frame.receiveShadow = true
       grp.add(frame)
     }
-    const pane = new Mesh(paneGeometry(-half, half, PANEL_Y0, PANEL_Y1, 0.03), mats.paper)
+    const pane = new Mesh(paneGeometry(-half, half, PANEL_Y0, PANEL_Y1, -0.018), mats.paper)
     pane.castShadow = false
     pane.receiveShadow = false
     grp.add(pane)
@@ -456,19 +566,23 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   // small side window on the back wall
   const sideWinX0 = -3.9
   const sideWinX1 = -3.1
-  const sideWinY0 = 1.3
-  const sideWinY1 = 1.9
+  // Align the head with the adjacent 0.1 m rail's top at y 1.95.
+  const sideWinY0 = 1.35
+  const sideWinY1 = 1.95
+  // Seat the frame against the plaster's inner face (-6.875), with the fine lattice in front
+  // of the pane. The old frame face was coplanar with the plaster and its bars were buried.
+  const sideWinZ = ROOM_ZF
   latticePanel(
     (g) => b.push('shojiFrame', mats.woodDark, g, true, true),
     sideWinX0,
     sideWinX1,
     sideWinY0,
     sideWinY1,
-    -6.9,
+    sideWinZ,
     0.05,
   )
   const glassParts: BufferGeometry[] = [
-    paneGeometry(sideWinX0, sideWinX1, sideWinY0, sideWinY1, -6.87),
+    paneGeometry(sideWinX0, sideWinX1, sideWinY0, sideWinY1, sideWinZ - 0.023),
   ]
 
   // ----------------------------------------------------------------- +x wall: kitchen doma ----
@@ -494,7 +608,7 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
     new Vector2(0.22, 0.56),
     new Vector2(0.2, 0.56),
   ]
-  const kamadoGeo = new LatheGeometry(kamadoPts, 16)
+  const kamadoGeo = new LatheGeometry(kamadoPts, 32)
   kamadoGeo.applyMatrix4(xform(KX, DOMA_Y, KZ))
   const ringGeo1 = new TorusGeometry(0.15, 0.02, 6, 14)
   ringGeo1.applyMatrix4(xform(KX - 0.18, DOMA_Y + 0.56, KZ - 0.1, 0, Math.PI / 2))
@@ -516,15 +630,31 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
     new Vector2(0.09, 0.19),
     new Vector2(0, 0.2),
   ]
-  const pot1 = new LatheGeometry(potPts, 12)
+  const pot1 = new LatheGeometry(potPts, 28)
   pot1.applyMatrix4(xform(KX - 0.18, DOMA_Y + 0.54, KZ - 0.1))
   const pot2 = new LatheGeometry(
     potPts.map((p) => p.clone().multiplyScalar(0.85)),
-    12,
+    28,
   )
   pot2.applyMatrix4(xform(KX + 0.22, DOMA_Y + 0.54, KZ + 0.15))
   const metalParts: BufferGeometry[] = [pot1, pot2]
   if (ringMerged) metalParts.push(ringMerged)
+  for (const [x, z, scale] of [
+    [KX - 0.18, KZ - 0.1, 1],
+    [KX + 0.22, KZ + 0.15, 0.85],
+  ] as const) {
+    const lid = new CylinderGeometry(0.105 * scale, 0.13 * scale, 0.025, 28)
+    lid.applyMatrix4(xform(x, DOMA_Y + 0.54 + 0.18 * scale, z))
+    const knob = new SphereGeometry(0.025, 12, 8)
+    knob.applyMatrix4(xform(x, DOMA_Y + 0.57 + 0.18 * scale, z, 0, 0, 0, 1, 0.7, 1))
+    metalParts.push(lid, knob)
+  }
+  // An iron firebox door on the room-facing side of the earthen stove.
+  const stoveDoor = mergeVertices(new RoundedBoxGeometry(0.035, 0.21, 0.26, 2, 0.022))
+  stoveDoor.applyMatrix4(xform(KX - 0.49, DOMA_Y + 0.19, KZ))
+  metalParts.push(stoveDoor)
+  for (const z of [KZ - 0.06, KZ, KZ + 0.06])
+    b.box('hook', mats.woodDark, 0.018, 0.08, 0.012, KX - 0.511, DOMA_Y + 0.19, z, { cast: false })
 
   // water jar (clay, near the kamado)
   const jarPts = [
@@ -533,9 +663,15 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
     new Vector2(0.19, 0.14),
     new Vector2(0.14, 0.32),
     new Vector2(0.1, 0.36),
-    new Vector2(0.08, 0.36),
+    new Vector2(0.105, 0.365),
+    new Vector2(0.09, 0.38),
+    new Vector2(0.075, 0.375),
+    new Vector2(0.08, 0.32),
+    new Vector2(0.12, 0.27),
+    new Vector2(0.135, 0.08),
+    new Vector2(0, 0.055),
   ]
-  const jarGeo = new LatheGeometry(jarPts, 12)
+  const jarGeo = new LatheGeometry(jarPts, 28)
   jarGeo.applyMatrix4(xform(3.95, DOMA_Y, -3.3))
   const clayParts: BufferGeometry[] = [jarGeo]
 
@@ -544,7 +680,7 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   for (let i = 0; i < 4; i++) {
     const small = new LatheGeometry(
       jarPts.map((p) => p.clone().multiplyScalar(0.4 + i * 0.05)),
-      8,
+      20,
     )
     small.applyMatrix4(xform(5.0 + (i % 2) * 0.18, 1.72, -5.9 + i * 0.24))
     clayParts.push(small)
@@ -574,9 +710,27 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   })
 
   // bucket + bamboo basket on the doma floor
-  const bucketGeo = new CylinderGeometry(0.16, 0.13, 0.28, 12)
-  bucketGeo.applyMatrix4(xform(4.0, DOMA_Y + 0.14, -1.0))
+  const bucketGeo = new LatheGeometry(
+    [
+      new Vector2(0, 0),
+      new Vector2(0.13, 0),
+      new Vector2(0.16, 0.28),
+      new Vector2(0.145, 0.28),
+      new Vector2(0.115, 0.025),
+      new Vector2(0, 0.025),
+    ],
+    28,
+  )
+  bucketGeo.applyMatrix4(xform(4.0, DOMA_Y, -1.0))
   const tanParts: BufferGeometry[] = [bucketGeo]
+  for (const y of [0.06, 0.23]) {
+    const hoop = new TorusGeometry(0.13 + y * 0.107, 0.008, 6, 28)
+    hoop.applyMatrix4(xform(4, DOMA_Y + y, -1, 0, Math.PI / 2))
+    metalParts.push(hoop)
+  }
+  const bucketHandle = new TorusGeometry(0.15, 0.009, 6, 24, Math.PI)
+  bucketHandle.applyMatrix4(xform(4, DOMA_Y + 0.27, -1))
+  metalParts.push(bucketHandle)
   const basketGeo = new CylinderGeometry(0.22, 0.17, 0.22, 10)
   basketGeo.applyMatrix4(xform(4.5, DOMA_Y + 0.11, -0.7))
   tanParts.push(basketGeo)
@@ -611,10 +765,10 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   tanParts.push(hatGeo)
   // umbrella leaning against the wall
   const shaftGeo = new CylinderGeometry(0.015, 0.015, 1.1, 6)
-  shaftGeo.applyMatrix4(xform(-2.9, 0.96, -0.22, 0, 0, 0.16))
+  shaftGeo.applyMatrix4(xform(-1.85, 0.96, -0.22, 0, 0, 0.16))
   b.push('trim', mats.wood, shaftGeo, false, false)
   const canopyGeo = new ConeGeometry(0.13, 0.85, 8)
-  canopyGeo.applyMatrix4(xform(-2.9, 1.5, -0.26, 0, 0, 0.16))
+  canopyGeo.applyMatrix4(xform(-1.85, 1.5, -0.26, 0, 0, 0.16))
   clothParts.push(canopyGeo)
   // a small step at the tatami/doma boundary near the front
   b.box('trim', mats.wood, 0.5, 0.18, 0.4, 3.3, FLOOR_Y - 0.09, -0.45, { cast: false })
@@ -644,10 +798,89 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   for (let i = 0; i < 3; i++) {
     const small = new LatheGeometry(
       jarPts.map((p) => p.clone().multiplyScalar(0.35 + i * 0.06)),
-      8,
+      20,
     )
     small.applyMatrix4(xform(-5.0 - (i % 2) * 0.15, 1.62, -4.9 + i * 0.35))
     clayParts.push(small)
+  }
+  // A compact tea chest beneath the existing shelf, with inset drawer faces and ring pulls.
+  const chestX = -4.68
+  const chestZ = -4.52
+  const chestTop = FLOOR_Y + 0.76
+  rounded(0.62, 0.61, 1.5, chestX, FLOOR_Y + 0.405, chestZ, true)
+  rounded(0.73, 0.07, 1.62, chestX, chestTop - 0.035, chestZ)
+  rounded(0.69, 0.075, 1.56, chestX, FLOOR_Y + 0.095, chestZ)
+  for (const z of [chestZ - 0.68, chestZ + 0.68])
+    for (const x of [chestX - 0.23, chestX + 0.23])
+      rounded(0.085, 0.12, 0.09, x, FLOOR_Y + 0.06, z, true)
+  for (const y of [FLOOR_Y + 0.28, FLOOR_Y + 0.56]) {
+    for (const z of [chestZ - 0.375, chestZ + 0.375]) {
+      rounded(0.04, 0.245, 0.7, chestX + 0.326, y, z)
+      const plate = new CylinderGeometry(0.025, 0.025, 0.012, 16)
+      plate.applyMatrix4(xform(chestX + 0.35, y + 0.015, z, 0, 0, Math.PI / 2))
+      const pull = new TorusGeometry(0.034, 0.005, 6, 18)
+      pull.applyMatrix4(xform(chestX + 0.361, y - 0.015, z, Math.PI / 2))
+      metalParts.push(plate, pull)
+    }
+  }
+  // Raised tray edges, a hollow-bowled tea service and an unmistakable teapot silhouette.
+  const trayY = chestTop + 0.035
+  rounded(0.53, 0.03, 1.03, chestX, trayY - 0.015, chestZ, true)
+  for (const side of [-1, 1]) {
+    rounded(0.025, 0.03, 1.03, chestX + side * 0.253, trayY + 0.008, chestZ)
+    rounded(0.53, 0.03, 0.025, chestX, trayY + 0.008, chestZ + side * 0.502)
+  }
+  const teapot = new LatheGeometry(
+    [
+      new Vector2(0, 0),
+      new Vector2(0.06, 0),
+      new Vector2(0.095, 0.018),
+      new Vector2(0.113, 0.072),
+      new Vector2(0.095, 0.13),
+      new Vector2(0.06, 0.15),
+      new Vector2(0.055, 0.16),
+      new Vector2(0, 0.16),
+    ],
+    28,
+  )
+  const teaZ = chestZ - 0.28
+  teapot.applyMatrix4(xform(chestX, trayY, teaZ))
+  const teaLid = new SphereGeometry(0.065, 24, 12)
+  teaLid.applyMatrix4(xform(chestX, trayY + 0.162, teaZ, 0, 0, 0, 1, 0.25, 1))
+  const teaKnob = new SphereGeometry(0.016, 12, 8)
+  teaKnob.applyMatrix4(xform(chestX, trayY + 0.188, teaZ))
+  const teaSpout = new LatheGeometry(
+    [
+      new Vector2(0.033, 0),
+      new Vector2(0.027, 0.06),
+      new Vector2(0.019, 0.12),
+      new Vector2(0.012, 0.12),
+      new Vector2(0.017, 0.055),
+    ],
+    20,
+  )
+  teaSpout.applyMatrix4(xform(chestX + 0.073, trayY + 0.08, teaZ, 0, 0, -0.8))
+  const teaHandle = new TorusGeometry(0.065, 0.012, 8, 24, Math.PI * 1.55)
+  teaHandle.applyMatrix4(xform(chestX - 0.087, trayY + 0.09, teaZ, 0, 0, Math.PI * 0.22))
+  clayParts.push(teapot, teaLid, teaKnob, teaSpout, teaHandle)
+  for (const z of [chestZ + 0.03, chestZ + 0.3]) {
+    const cup = new LatheGeometry(
+      [
+        new Vector2(0.026, 0),
+        new Vector2(0.04, 0.008),
+        new Vector2(0.052, 0.06),
+        new Vector2(0.05, 0.078),
+        new Vector2(0.043, 0.079),
+        new Vector2(0.04, 0.059),
+        new Vector2(0.028, 0.018),
+        new Vector2(0, 0.018),
+      ],
+      24,
+    )
+    cup.applyMatrix4(xform(chestX + 0.08, trayY, z))
+    const saucer = new CylinderGeometry(0.076, 0.065, 0.01, 24)
+    saucer.applyMatrix4(xform(chestX + 0.08, trayY + 0.004, z))
+    clayParts.push(cup, saucer)
   }
   // farm tools leaning against the wall: handles (wood) + heads (metal)
   const toolX = -5.12
@@ -689,7 +922,7 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   const POST = 0.18
   const postCorners: [number, number][] = [
     [ROOM_X0 + POST / 2, ROOM_ZN - POST / 2],
-    [DOMA_X0 - POST / 2, ROOM_ZN - POST / 2],
+    [1.42, ROOM_ZN - POST / 2], // align with the doorway bay, clear of the right front window
     [ROOM_X0 + POST / 2, ROOM_ZF + POST / 2],
     [ROOM_X1 - POST / 2, ROOM_ZF + POST / 2],
     [ROOM_X0 + POST / 2, (ROOM_ZN + ROOM_ZF) / 2],
@@ -698,28 +931,38 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   for (const [x, z] of postCorners)
     b.box('post', mats.woodDark, POST, CEIL_Y - FLOOR_Y, POST, x, (FLOOR_Y + CEIL_Y) / 2, z)
   // daikokubashira: the stouter post that marks the tatami/doma threshold
-  b.box('post', mats.woodDark, 0.24, CEIL_Y - DOMA_Y, 0.24, DOMA_X0, (DOMA_Y + CEIL_Y) / 2, -3.5)
-  // nageshi rail at y 1.9, split around the doorway and the shoji opening
-  const RAIL_Y = 1.9
-  b.box('post', mats.woodDark, 5.25 - 1.3, 0.1, 0.06, (ROOM_X0 + -1.3) / 2, RAIL_Y, ROOM_ZN, {
-    receive: false,
-  })
-  b.box('post', mats.woodDark, DOMA_X0 - 1.3, 0.1, 0.06, (DOMA_X0 + 1.3) / 2, RAIL_Y, ROOM_ZN, {
-    receive: false,
-  })
+  const DOMA_POST_Z = -3.5
   b.box(
     'post',
     mats.woodDark,
-    SHOJI_X0 - ROOM_X0,
-    0.1,
-    0.06,
-    (SHOJI_X0 + ROOM_X0) / 2,
-    RAIL_Y,
-    ROOM_ZF,
-    {
-      receive: false,
-    },
+    0.24,
+    CEIL_Y - DOMA_Y,
+    0.24,
+    DOMA_X0,
+    (DOMA_Y + CEIL_Y) / 2,
+    DOMA_POST_Z,
   )
+  // nageshi rail at y 1.9, split around the front windows, doorway and shoji opening
+  const RAIL_Y = 1.9
+  const [frontLeft, frontRight] = FRONT_WINDOWS.centers
+  const frontFrameHalf = FRONT_WINDOWS.halfWidth + FRONT_WINDOWS.frameWidth / 2
+  for (const [x0, x1] of [
+    [ROOM_X0, frontLeft - frontFrameHalf],
+    [frontLeft + frontFrameHalf, -1.3],
+    [1.3, frontRight - frontFrameHalf],
+    [frontRight + frontFrameHalf, ROOM_X1],
+  ] as const)
+    b.box('post', mats.woodDark, x1 - x0, 0.1, 0.06, (x0 + x1) / 2, RAIL_Y, ROOM_ZN, {
+      receive: false,
+    })
+  // The rear rail meets the window's stiles instead of covering its head and upper lattice.
+  for (const [x0, x1] of [
+    [ROOM_X0, sideWinX0],
+    [sideWinX1, SHOJI_X0],
+  ] as const)
+    b.box('post', mats.woodDark, x1 - x0, 0.1, 0.06, (x0 + x1) / 2, RAIL_Y, ROOM_ZF, {
+      receive: false,
+    })
   b.box(
     'post',
     mats.woodDark,
@@ -751,19 +994,19 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
     mats.woodDark,
     0.06,
     0.1,
-    ROOM_ZN - ROOM_ZF,
+    DOMA_POST_Z - ROOM_ZF,
     DOMA_X0,
     RAIL_Y,
-    (ROOM_ZN + ROOM_ZF) / 2,
+    (DOMA_POST_Z + ROOM_ZF) / 2,
     {
       receive: false,
     },
   )
 
   // -------------------------------------------------------------------------- hearth ----
-  const HX = 0
+  const HX = HEARTH_CENTER.x
   const HY = FLOOR_Y
-  const HZ = -3.4
+  const HZ = HEARTH_CENTER.z
   const PIT = 1.2
   const PIT_DEPTH = 0.14
   for (const side of [-1, 1]) {
@@ -808,6 +1051,11 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   ashMesh.castShadow = false
   ashMesh.receiveShadow = true
   group.add(ashMesh)
+  for (let i = 0; i < 3; i++) {
+    const log = new CylinderGeometry(0.045, 0.057, 0.55 - i * 0.06, 12)
+    log.applyMatrix4(xform(HX + (i - 1) * 0.12, HY - 0.068 + i * 0.012, HZ, i * 0.8, Math.PI / 2))
+    b.push('hook', mats.woodDark, log, false, true)
+  }
   const emberCount = quality.tier === 'low' ? 4 : 8
   const emberGeo = new SphereGeometry(0.045, 6, 5)
   const embers = new InstancedMesh(emberGeo, ember, emberCount)
@@ -824,50 +1072,85 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   embers.receiveShadow = false
   group.add(embers)
 
+  const fire = createHearthFire(quality)
+  fire.group.position.set(HX, HY - PIT_DEPTH + 0.07, HZ)
+  group.add(fire.group)
+
   // ------------------------------------------------------- kettle, chain and counterweight ----
-  // Offset off x=0 so the swinging assembly never sits on the camera's dolly line (the camera
-  // holds x=0 through the whole approach/turn/doors beats and crosses z=-3.4 just past t=.5).
-  const PIVOT = { x: 0.75, y: 3.13, z: HZ }
+  // The full-size kettle and its suspension share the fire's center.
+  const PIVOT = { x: HX, y: 3.13, z: HZ }
   const swing = new Group()
   swing.position.set(PIVOT.x, PIVOT.y, PIVOT.z)
-  b.box('post', mats.woodDark, 0.1, 0.08, 0.1, PIVOT.x, CEIL_Y + 0.01, PIVOT.z) // mounting bracket into the ceiling
+  b.box('post', mats.woodDark, 0.1, 0.16, 0.1, PIVOT.x, CEIL_Y - 0.06, PIVOT.z) // mounting bracket into the ceiling
 
   const chainParts: BufferGeometry[] = []
   const CHAIN_TOP = -0.05
-  // The kettle hangs close over the fire (well below the camera's ~1.45 m eye line, which is
-  // flat through the whole turn+doors beats), not at head height: the camera sits fixed only
-  // 0.2 m from the hearth in z during the turn and later flies straight through this z depth,
-  // so anything at eye level here would fill the frame or clip the lens.
   const CHAIN_BOTTOM = -2.1
-  const LINKS = 14
+  const LINKS = 29
   for (let i = 0; i < LINKS; i++) {
     const t = i / (LINKS - 1)
-    const y = CHAIN_TOP + (CHAIN_BOTTOM - CHAIN_TOP) * t
-    const link = new TorusGeometry(0.045, 0.012, 5, 8)
-    link.applyMatrix4(xform(0, y, 0, 0, i % 2 === 0 ? 0 : Math.PI / 2))
+    const y = CHAIN_TOP + (CHAIN_BOTTOM + 0.2 - CHAIN_TOP) * t
+    const link = new TorusGeometry(0.038, 0.007, 6, 14)
+    link.applyMatrix4(xform(0, y, 0, i % 2 === 0 ? 0 : Math.PI / 2, 0, 0, 1, 1.3, 1))
     chainParts.push(link)
   }
   const kettlePts = [
     new Vector2(0, 0),
-    new Vector2(0.26, 0),
+    new Vector2(0.21, 0),
+    new Vector2(0.27, 0.018),
+    new Vector2(0.305, 0.055),
     new Vector2(0.32, 0.1),
+    new Vector2(0.322, 0.155),
     new Vector2(0.3, 0.22),
+    new Vector2(0.265, 0.278),
     new Vector2(0.22, 0.32),
     new Vector2(0.14, 0.36),
     new Vector2(0.1, 0.37),
     new Vector2(0.08, 0.37),
   ]
-  const kettleGeo = new LatheGeometry(kettlePts, 14)
+  const kettleGeo = new LatheGeometry(kettlePts, 40)
   kettleGeo.applyMatrix4(xform(0, CHAIN_BOTTOM - 0.37, 0))
-  const lidGeo = new CylinderGeometry(0.09, 0.1, 0.04, 12)
+  const lidGeo = new LatheGeometry(
+    [
+      new Vector2(0, 0),
+      new Vector2(0.11, 0),
+      new Vector2(0.116, 0.012),
+      new Vector2(0.105, 0.023),
+      new Vector2(0.07, 0.032),
+      new Vector2(0, 0.035),
+    ],
+    32,
+  )
   lidGeo.applyMatrix4(xform(0, CHAIN_BOTTOM, 0))
-  const knobGeo = new SphereGeometry(0.02, 6, 5)
-  knobGeo.applyMatrix4(xform(0, CHAIN_BOTTOM + 0.03, 0))
+  const knobGeo = new SphereGeometry(0.024, 16, 10)
+  knobGeo.applyMatrix4(xform(0, CHAIN_BOTTOM + 0.04, 0))
   // Default orientation already arcs through +y (up) from (r,0,0) to (-r,0,0): no extra
   // rotation needed, just sat just above the rim so it reads as a handle, not a flat sliver.
-  const bailGeo = new TorusGeometry(0.13, 0.013, 5, 12, Math.PI)
-  bailGeo.applyMatrix4(xform(0, CHAIN_BOTTOM + 0.06, 0))
-  const kettleMerged = mergeGeometries([...chainParts, kettleGeo, lidGeo, knobGeo, bailGeo], false)
+  const bailGeo = new TorusGeometry(0.245, 0.014, 8, 36, Math.PI)
+  bailGeo.applyMatrix4(xform(0, CHAIN_BOTTOM - 0.05, 0))
+  const spoutGeo = new LatheGeometry(
+    [
+      new Vector2(0.074, 0),
+      new Vector2(0.059, 0.055),
+      new Vector2(0.042, 0.17),
+      new Vector2(0.033, 0.26),
+      new Vector2(0.034, 0.274),
+      new Vector2(0.023, 0.274),
+      new Vector2(0.023, 0.24),
+      new Vector2(0.031, 0.17),
+    ],
+    28,
+  )
+  spoutGeo.applyMatrix4(xform(0.23, CHAIN_BOTTOM - 0.17, 0, 0, 0, -0.72))
+  const footGeo = new TorusGeometry(0.215, 0.016, 8, 32)
+  footGeo.applyMatrix4(xform(0, CHAIN_BOTTOM - 0.37 + 0.006, 0, 0, Math.PI / 2))
+  const kettleParts: BufferGeometry[] = [kettleGeo, lidGeo, knobGeo, bailGeo, spoutGeo, footGeo]
+  for (const side of [-1, 1]) {
+    const lug = new SphereGeometry(0.028, 12, 8)
+    lug.applyMatrix4(xform(side * 0.235, CHAIN_BOTTOM - 0.05, 0, 0, 0, 0, 1, 0.8, 0.75))
+    kettleParts.push(lug)
+  }
+  const kettleMerged = mergeGeometries([...chainParts, ...kettleParts], false)
   if (kettleMerged) {
     const kettleMesh = new Mesh(kettleMerged, metal)
     kettleMesh.castShadow = true
@@ -877,7 +1160,7 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   // carved wooden fish counterweight, hanging off a short arm partway up the chain
   const armGeo = new BoxGeometry(0.34, 0.02, 0.02)
   armGeo.applyMatrix4(xform(0.17, CHAIN_TOP - 0.5, 0))
-  const fishBody = new SphereGeometry(0.09, 8, 6)
+  const fishBody = new SphereGeometry(0.09, 20, 12)
   fishBody.applyMatrix4(xform(0.34, CHAIN_TOP - 0.62, 0, 0, 0, 0, 1, 0.55, 0.38))
   const fishTail = new ConeGeometry(0.07, 0.12, 4)
   fishTail.applyMatrix4(xform(0.46, CHAIN_TOP - 0.62, 0, 0, 0, Math.PI / 2, 1, 1, 0.25))
@@ -892,28 +1175,60 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
 
   // ------------------------------------------------------------------------------- lamp ----
   const LAMP = { x: 1.5, y: 2.3, z: -4 }
-  const shadeGeo = new CylinderGeometry(0.22, 0.22, 0.6, 12, 1, true)
+  const shadeProfile = [
+    new Vector2(0.18, -0.3),
+    new Vector2(0.212, -0.27),
+    new Vector2(0.227, -0.2),
+    new Vector2(0.235, -0.1),
+    new Vector2(0.237, 0),
+    new Vector2(0.235, 0.1),
+    new Vector2(0.227, 0.2),
+    new Vector2(0.212, 0.27),
+    new Vector2(0.18, 0.3),
+  ]
+  const shadeGeo = new LatheGeometry(shadeProfile, 40)
   shadeGeo.applyMatrix4(xform(LAMP.x, LAMP.y, LAMP.z))
   const shade = new Mesh(shadeGeo, lampPaper)
   shade.castShadow = false
   shade.receiveShadow = false
   group.add(shade)
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2
-    b.box(
-      'hook',
-      mats.woodDark,
-      0.02,
-      0.6,
-      0.02,
-      LAMP.x + Math.cos(a) * 0.22,
-      LAMP.y,
-      LAMP.z + Math.sin(a) * 0.22,
-      {
-        cast: false,
-        receive: false,
-      },
+  for (let i = 0; i <= 18; i++) {
+    const y = -0.3 + i / 30
+    const radius =
+      i === 0 || i === 18 ? 0.18 : 0.18 + 0.058 * Math.sqrt(Math.max(0, 1 - (y / 0.31) ** 2))
+    const hoop = new TorusGeometry(radius, i === 0 || i === 18 ? 0.012 : 0.0025, 5, 40)
+    hoop.applyMatrix4(xform(LAMP.x, LAMP.y + y, LAMP.z, 0, Math.PI / 2))
+    b.push('hook', mats.woodDark, hoop, false, false)
+  }
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2
+    const rib = new TubeGeometry(
+      new CatmullRomCurve3(
+        shadeProfile.map(
+          (p) =>
+            new Vector3(
+              LAMP.x + Math.cos(a) * (p.x + 0.002),
+              LAMP.y + p.y,
+              LAMP.z + Math.sin(a) * (p.x + 0.002),
+            ),
+        ),
+      ),
+      20,
+      0.004,
+      6,
+      false,
     )
+    b.push('hook', mats.woodDark, rib, false, false)
+  }
+  for (const y of [LAMP.y - 0.3, LAMP.y + 0.3]) {
+    b.box('hook', mats.woodDark, 0.36, 0.016, 0.018, LAMP.x, y, LAMP.z, {
+      cast: false,
+      receive: false,
+    })
+    b.box('hook', mats.woodDark, 0.018, 0.016, 0.36, LAMP.x, y, LAMP.z, {
+      cast: false,
+      receive: false,
+    })
   }
   b.box('hook', mats.woodDark, 0.015, 0.6, 0.015, LAMP.x, LAMP.y + 0.6, LAMP.z, {
     cast: false,
@@ -970,9 +1285,9 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
 
       const glow = clamp(state.lamp / 9, 0, 1)
       const flicker = state.reduced ? 0 : Math.sin(t / 90) * 0.06 + Math.sin(t / 231 + 2) * 0.04
-      lampPaper.emissiveIntensity = glow * (0.85 + flicker)
-      const emberFlicker = state.reduced ? 0 : Math.sin(t / 140 + 0.6) * 0.15
-      ember.emissiveIntensity = 1.2 + emberFlicker
+      lampPaper.emissiveIntensity = glow * (0.45 + flicker)
+      ember.emissiveIntensity = 1.2 * hearthFlicker(state.time, state.reduced)
+      fire.update?.(state)
     },
   }
 }

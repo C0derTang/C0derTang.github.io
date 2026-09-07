@@ -9,29 +9,73 @@
 #overlay {
   z-index: 4;
 }
-/* Loading curtain: paper-white with a hairline progress bar; hidden once every asset is resident. */
 #curtain {
   position: fixed;
   inset: 0;
   z-index: 6;
   background: var(--paper-sky);
+  color: var(--ink);
   display: grid;
   place-items: center;
-  transition: opacity 0.5s ease;
+  padding: 2rem;
+  transition:
+    opacity 600ms ease,
+    visibility 600ms;
+}
+#curtain.is-ready {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 #curtain[hidden] {
   display: none;
 }
+.curtain-content {
+  width: min(25rem, 100%);
+}
+.curtain-content .eyebrow {
+  color: #646e68;
+}
+.curtain-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  line-height: 1.35;
+  letter-spacing: -0.035em;
+  margin: 0 0 2.5rem;
+}
 .curtain-bar {
-  width: 160px;
+  width: 100%;
   height: 2px;
-  background: rgba(0, 0, 0, 0.12);
+  background: rgb(28 42 36 / 12%);
   overflow: hidden;
 }
 .curtain-bar i {
   display: block;
   height: 100%;
-  width: calc(var(--p, 0) * 100%);
-  background: var(--ink);
-  transition: width 0.2s ease;
+  width: 100%;
+  transform: scaleX(var(--p, 0));
+  transform-origin: left;
+  background: #697767;
+  transition: transform 200ms ease;
+}
+.curtain-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.8rem;
+  color: #56635b;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.curtain-instruction {
+  margin: 3rem 0 0;
+  color: #69736c;
+  font-size: 0.8rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  #curtain,
+  .curtain-bar i {
+    transition: none;
+  }
 }

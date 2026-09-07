@@ -9,6 +9,7 @@
     <meta name="theme-color" content="#142a3a" />
     <link rel="canonical" href="https://c0dertang.github.io/" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/src/styles/index.css" />
 
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://c0dertang.github.io/" />
@@ -23,66 +24,158 @@
       document.documentElement.classList.add('js')
     </script>
   </head>
-  <body>
+  <body id="exterior">
     <a class="skip-link" href="#overlay">Skip to content</a>
 
     <!-- The scene: one WebGL canvas. Scrolling never moves it; the camera does. -->
     <canvas id="gl" aria-hidden="true"></canvas>
-    <div id="curtain" aria-hidden="true">
-      <div class="curtain-bar"><i></i></div>
+    <div id="curtain">
+      <div class="curtain-content">
+        <p class="eyebrow">A place to slow down</p>
+        <p class="curtain-title">A walk through the rain.</p>
+        <div
+          class="curtain-bar"
+          role="progressbar"
+          aria-label="Loading landscape"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <i></i>
+        </div>
+        <div class="curtain-meta">
+          <span data-ui="load-status" role="status">Gathering the landscape</span>
+          <span data-ui="load-count" aria-hidden="true">0%</span>
+        </div>
+        <p class="curtain-instruction">A farmhouse. A rice field. A world beneath.</p>
+      </div>
     </div>
 
     <!-- Static, crawlable copy. Each slot is shown/hidden by its beat. -->
-    <main id="overlay">
-      <div class="mark" data-ui="mark">Christopher Tang</div>
-      <div class="hint" data-ui="hint" aria-hidden="true"><span>scroll</span><i></i></div>
+    <main id="overlay" tabindex="-1" aria-label="A walk through the rain">
+      <header class="scene-header">
+        <div class="mark" data-ui="mark">
+          Christopher Tang<span class="mark-dot" aria-hidden="true"></span>
+        </div>
+        <div class="scene-tools">
+          <span class="scene-caption">A walk through the rain</span>
+          <div class="sound-control" data-ui="sound" data-enabled="false" hidden>
+            <button
+              class="sound-toggle"
+              type="button"
+              data-ui="sound-toggle"
+              aria-label="Enable sound"
+              aria-pressed="false"
+              aria-controls="sound-volume"
+              disabled
+            >
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                <path class="sound-icon-on" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" />
+                <path class="sound-icon-off" d="m16 9 5 6m0-6-5 6" />
+              </svg>
+              <span data-ui="sound-label">Enable sound</span>
+            </button>
+            <div class="sound-volume" id="sound-volume" hidden>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value="45"
+                aria-label="Sound volume"
+                aria-valuetext="45%"
+                data-ui="sound-volume"
+                disabled
+              />
+            </div>
+            <span
+              class="sound-status"
+              data-ui="sound-status"
+              role="status"
+              aria-atomic="true"
+            ></span>
+          </div>
+        </div>
+      </header>
+      <div class="hint" data-ui="hint"><span>Scroll to wander</span><i aria-hidden="true"></i></div>
+      <p id="scene-note" role="status" hidden>
+        The interactive landscape couldn’t load. You can still follow the walk below.
+      </p>
 
       <section class="slot slot-exterior" data-slot="exterior">
-        <p class="eyebrow">01 — Ame · rain</p>
+        <p class="eyebrow">
+          <span class="chapter-number">01</span> Ame <span class="eyebrow-divider">/</span> Rain
+        </p>
         <h1>Christopher Tang</h1>
         <p class="lede">
-          [placeholder] A rainy farmhouse at the edge of the paddies. Two lines of intro copy go
-          here once the design is approved.
+          Welcome to my little corner of the internet. Take the path through the rain. There’s more
+          beneath the surface.
         </p>
       </section>
 
       <section class="slot slot-interior" data-slot="interior">
-        <p class="eyebrow">02 — Ie · house</p>
-        <h2>[Placeholder heading]</h2>
-        <p>
-          [placeholder] The room is warm and dry. This paper card holds a short paragraph about
-          whatever belongs indoors.
+        <p class="eyebrow">
+          <span class="chapter-number">02</span> Ie <span class="eyebrow-divider">/</span> House
         </p>
+        <h2>A moment of shelter.</h2>
+        <p>Rain on the roof. Light through paper. A little room to pause before the fields.</p>
       </section>
 
       <section class="slot slot-paddy" data-slot="paddy">
-        <p class="eyebrow">03 — Tanbo · paddy</p>
-        <h2>[Placeholder heading]</h2>
-        <p>[placeholder] Rows of rice in flooded ground. A caption for the field goes here.</p>
+        <p class="eyebrow">
+          <span class="chapter-number">03</span> Tanbo <span class="eyebrow-divider">/</span> Paddy
+        </p>
+        <h2>Where the rain gathers.</h2>
+        <p>Beyond the house, rice rises from still water. Follow the ripples a little further.</p>
       </section>
 
       <section class="slot slot-underwater" data-slot="underwater">
-        <p class="eyebrow">04 — Sakana · fish</p>
-        <h2>[Placeholder heading]</h2>
+        <p class="eyebrow">
+          <span class="chapter-number">04</span> Sakana <span class="eyebrow-divider">/</span> Fish
+        </p>
+        <h2>A world beneath.</h2>
         <p>
-          [placeholder] Under the surface the fish keep the paddy alive. Closing copy and links go
-          here.
+          Rice above, fish below. Two kinds of life sharing one small world. Thanks for wandering
+          with me.
         </p>
         <p class="links">
-          <a href="https://github.com/C0derTang">GitHub</a><a href="#exterior">Back to the top</a>
+          <a href="https://github.com/C0derTang">GitHub <span aria-hidden="true">↗</span></a
+          ><a href="#exterior">Walk again <span aria-hidden="true">↑</span></a>
         </p>
       </section>
+      <div
+        class="journey"
+        data-ui="journey"
+        role="progressbar"
+        aria-label="Journey progress"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+      >
+        <div class="journey-location">
+          <span class="journey-number" data-ui="chapter">01 / 04</span
+          ><span data-ui="location">Outside the farmhouse</span>
+        </div>
+        <div class="journey-progress" aria-hidden="true">
+          <div class="journey-track">
+            <i data-chapter="exterior"></i><i data-chapter="interior"></i
+            ><i data-chapter="paddy"></i><i data-chapter="underwater"></i>
+          </div>
+          <span data-ui="progress">00%</span>
+        </div>
+      </div>
     </main>
 
     <!-- Scroll spacer. Its height defines the length of the story. -->
     <div class="scroll-track" aria-hidden="true">
-      <section class="beat" id="exterior" style="--len: 0.15"></section>
-      <section class="beat" id="enter" style="--len: 0.17"></section>
-      <section class="beat" id="turn" style="--len: 0.18"></section>
-      <section class="beat" id="doors" style="--len: 0.08"></section>
-      <section class="beat" id="paddy" style="--len: 0.18"></section>
-      <section class="beat" id="dive" style="--len: 0.09"></section>
-      <section class="beat" id="underwater" style="--len: 0.15"></section>
+      <section class="beat" data-beat="exterior"></section>
+      <section class="beat" data-beat="enter" id="enter"></section>
+      <section class="beat" data-beat="turn" id="turn"></section>
+      <section class="beat" data-beat="doors" id="doors"></section>
+      <section class="beat" data-beat="paddy" id="paddy"></section>
+      <section class="beat" data-beat="dive" id="dive"></section>
+      <section class="beat" data-beat="underwater" id="underwater"></section>
     </div>
 
     <noscript>

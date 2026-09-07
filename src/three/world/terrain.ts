@@ -22,6 +22,7 @@ import type { Quality } from '../../config/quality'
 import { at, clamp01, lerp, mulberry32, smoothstep } from '../../util/math'
 import type { Materials } from '../materials'
 import { WATER_Y, type SceneState } from '../state'
+import { insidePuddle, PUDDLES } from './puddles'
 import type { WorldPart } from './types'
 
 /**
@@ -113,29 +114,164 @@ export function terrainHeight(x: number, z: number): number {
 function buildGround(mats: Materials): Mesh {
   const geo = new PlaneGeometry(400, 400, 200, 200)
   const pos = geo.attributes.position
+  const uv = geo.attributes.uv
   if (pos) {
     const colors = new Float32Array(pos.count * 3)
     for (let i = 0; i < pos.count; i++) {
       const wx = pos.getX(i)
       const wz = -pos.getY(i)
       pos.setZ(i, terrainHeight(wx, wz))
+      uv?.setXY(i, wx, -wz)
       let mud = 0
       for (let s = 0; s < TERRACE_STEPS; s++)
         mud = Math.max(mud, 1 - smoothstep(0, 1.3, Math.abs(wz - riserZ(s))))
       const m = mud * 0.55
-      colors[i * 3] = lerp(1, 0.66, m)
-      colors[i * 3 + 1] = lerp(1, 0.55, m)
-      colors[i * 3 + 2] = lerp(1, 0.42, m)
+      const yard =
+        smoothstep(0.5, 2, wz) *
+        (1 - smoothstep(26, 34, wz)) *
+        (1 - smoothstep(12, 20, Math.abs(wx)))
+      const patch =
+        0.5 + 0.25 * Math.sin(wx * 0.72 + wz * 0.31) + 0.25 * Math.sin(wx * 0.27 - wz * 0.83)
+      colors[i * 3] = lerp(1, 0.66, m) * lerp(1, 0.66 + patch * 0.2, yard)
+      colors[i * 3 + 1] = lerp(1, 0.55, m) * lerp(1, 0.8 + patch * 0.16, yard)
+      colors[i * 3 + 2] = lerp(1, 0.42, m) * lerp(1, 0.57 + patch * 0.18, yard)
     }
     pos.needsUpdate = true
     geo.setAttribute('color', new Float32BufferAttribute(colors, 3))
   }
+  if (uv) uv.needsUpdate = true
   geo.computeVertexNormals()
-  const mat = mats.make('moss', { repeat: 40, color: '#a9bd93', roughness: 1 })
+  // Metre UVs make the leaf litter a fine ground layer: a 1.25 m tile instead of a 10 m tile.
+  const mat = mats.make('moss', { repeat: 0.8, color: '#a9bd93', roughness: 0.95 })
+  mat.normalScale.set(0.6, 0.6)
   mat.vertexColors = true
   const mesh = new Mesh(geo, mat)
   mesh.rotation.x = -Math.PI / 2
   return shadowed(mesh, false, true)
+}
+
+/** Five curved, tapering blades form a short three-dimensional tuft, without alpha cards. */
+function yardGrassGeometry(): BufferGeometry {
+  const positions: number[] = []
+  const uvs: number[] = []
+  const colors: number[] = []
+  const indices: number[] = []
+  const rnd = mulberry32(82)
+  for (let blade = 0; blade < 5; blade++) {
+    const angle = (blade / 5) * Math.PI * 2 + rnd() * 0.35
+    const outwardX = Math.cos(angle)
+    const outwardZ = Math.sin(angle)
+    const sideX = -outwardZ
+    const sideZ = outwardX
+    const height = 0.07 + rnd() * 0.03
+    const width = 0.018 + rnd() * 0.009
+    const lean = 0.035 + rnd() * 0.03
+    const base = positions.length / 3
+    for (const [fraction, edge] of [
+      [0, -1],
+      [0, 1],
+      [0.55, -0.55],
+      [0.55, 0.55],
+      [1, 0],
+    ] as const) {
+      const bend = 0.012 + lean * fraction * fraction
+      positions.push(
+        outwardX * bend + sideX * width * edge * 0.5,
+        height * fraction,
+        outwardZ * bend + sideZ * width * edge * 0.5,
+      )
+      uvs.push(width * (edge + 1) * 0.5, height * fraction)
+      colors.push(lerp(0.55, 1, fraction), lerp(0.64, 1, fraction), lerp(0.45, 0.82, fraction))
+    }
+    indices.push(
+      base,
+      base + 1,
+      base + 2,
+      base + 1,
+      base + 3,
+      base + 2,
+      base + 2,
+      base + 3,
+      base + 4,
+    )
+  }
+  const geo = new BufferGeometry()
+  geo.setAttribute('position', new Float32BufferAttribute(positions, 3))
+  geo.setAttribute('uv', new Float32BufferAttribute(uvs, 2))
+  geo.setAttribute('color', new Float32BufferAttribute(colors, 3))
+  geo.setIndex(indices)
+  geo.computeVertexNormals()
+  return geo
+}
+
+/** Restrict actual grass to the front yard; keep the path, standing water, and props clear. */
+function buildYardGrass(
+  mats: Materials,
+  quality: Quality,
+): { mesh: InstancedMesh; update(state: SceneState): void } {
+  const count = quality.software ? 350 : quality.tier === 'low' ? 1800 : 8000
+  // Blades share the registry's lit vegetation material; leaf-litter albedo made them brown.
+  const mat = mats.rice.clone()
+  mat.color.set('#7e9b64')
+  mat.roughness = 0.86
+  mat.side = DoubleSide
+  mat.vertexColors = true
+  const time = { value: 0 }
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uGrassTime = time
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uGrassTime;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        float grassHeight = clamp(position.y / 0.1, 0.0, 1.0);
+        float grassPhase = instanceMatrix[3].x * 0.8 + instanceMatrix[3].z * 0.45;
+        transformed.x += sin(uGrassTime * 1.4 + grassPhase) * grassHeight * grassHeight * 0.008;
+        transformed.z += sin(uGrassTime * 1.1 + grassPhase * 0.7) * grassHeight * grassHeight * 0.005;`,
+      )
+  }
+  const mesh = new InstancedMesh(yardGrassGeometry(), mat, count)
+  mesh.castShadow = false
+  mesh.receiveShadow = true
+  const rnd = mulberry32(83)
+  const o = new Object3D()
+  const tint = new Color()
+  const clearings = [
+    [-3.5, 2, 0.65],
+    [3.5, 2, 0.65],
+    [-2, 12, 0.55],
+    [2, 12, 0.55],
+    [5, 4, 0.45],
+  ] as const
+  for (let i = 0; i < count; i++) {
+    let x: number
+    let z: number
+    let patch: number
+    do {
+      x = (rnd() - 0.5) * 26
+      z = 1.85 + rnd() * 26
+      patch = 0.5 + 0.5 * Math.sin(x * 1.7 + Math.sin(z * 0.9)) * Math.sin(z * 1.1 - x * 0.3)
+    } while (
+      Math.abs(x) < 1.67 ||
+      rnd() > 0.4 + patch * 0.6 ||
+      clearings.some(([cx, cz, r]) => (x - cx) ** 2 + (z - cz) ** 2 < r * r) ||
+      PUDDLES.some((_, index) => insidePuddle(index, x, z))
+    )
+    o.position.set(x, terrainHeight(x, z), z)
+    o.rotation.set(0, rnd() * Math.PI * 2, 0)
+    const scale = 0.65 + rnd() * 0.65 + patch * 0.25
+    o.scale.set(scale, scale * (0.7 + rnd() * 0.45), scale)
+    o.updateMatrix()
+    mesh.setMatrixAt(i, o.matrix)
+    tint.setRGB(0.72 + patch * 0.22, 0.8 + patch * 0.18, 0.64 + patch * 0.22)
+    mesh.setColorAt(i, tint)
+  }
+  return {
+    mesh,
+    update(state) {
+      time.value = state.reduced ? 0 : state.time / 1000
+    },
+  }
 }
 
 /**
@@ -486,6 +622,17 @@ function makeCloudTexture(seed: number, size = 256): CanvasTexture {
     ctx.arc(cx, cy, r, 0, Math.PI * 2)
     ctx.fill()
   }
+  // Every bank must disappear before its card edge, including overlapping off-canvas puffs.
+  const pixels = ctx.getImageData(0, 0, size, size)
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const edgeX = smoothstep(0, 0.18, Math.min(x, size - 1 - x) / size)
+      const edgeY = smoothstep(0, 0.22, Math.min(y, size - 1 - y) / size)
+      const alpha = (y * size + x) * 4 + 3
+      pixels.data[alpha] = (pixels.data[alpha] ?? 0) * edgeX * edgeY
+    }
+  }
+  ctx.putImageData(pixels, 0, 0)
   tex.needsUpdate = true
   return tex
 }
@@ -493,10 +640,11 @@ function makeCloudTexture(seed: number, size = 256): CanvasTexture {
 function buildClouds(): InstancedMesh {
   const mat = new MeshStandardMaterial({
     map: makeCloudTexture(41),
+    color: new Color('#b9c4c2'),
     transparent: true,
     depthWrite: false,
     side: DoubleSide,
-    opacity: 0.75,
+    opacity: 0.32,
     roughness: 1,
     // Clouds ARE the atmosphere: letting scene fog blend them too pulls their already-pale
     // colour toward the (very similar) fog colour and makes them vanish at any real distance.
@@ -557,6 +705,8 @@ function buildScarecrow(mats: Materials): Mesh {
 export function createTerrain(mats: Materials, quality: Quality): WorldPart {
   const group = new Group()
   group.add(buildGround(mats))
+  const yardGrass = buildYardGrass(mats, quality)
+  group.add(yardGrass.mesh)
   group.add(buildWalls(mats))
 
   const cedars = buildCedars(mats, quality)
@@ -574,6 +724,7 @@ export function createTerrain(mats: Materials, quality: Quality): WorldPart {
   return {
     group,
     update(state: SceneState) {
+      yardGrass.update(state)
       cloudGroup.position.x = state.reduced ? 0 : Math.sin(state.time / 9000) * 8
     },
   }

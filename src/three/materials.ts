@@ -49,7 +49,7 @@ export interface Materials {
   /** the same water as a thin film: puddles on the path (tiny thickness, shorter attenuation) */
   puddle: MeshPhysicalMaterial
   waterNormals: Texture
-  /** the fir twig alpha card (CC0) for cedar tiers */
+  /** procedural cedar spray mask, shared by the instanced canopy cards */
   needleAlpha: Texture
   /** per-frame uniform drive for the water normal scroll */
   update(time: number): void
@@ -57,6 +57,50 @@ export interface Materials {
 
 const std = (color: string, roughness: number, metalness = 0): MeshStandardMaterial =>
   new MeshStandardMaterial({ color: new Color(color), roughness, metalness })
+
+/** A complete cedar spray per card; the source model's packed UV atlas is not a twig mask. */
+function makeNeedleAlpha(size = 512): CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const tex = new CanvasTexture(canvas)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return tex
+  ctx.fillStyle = '#000'
+  ctx.fillRect(0, 0, size, size)
+  ctx.strokeStyle = '#fff'
+  ctx.lineCap = 'round'
+  const rnd = mulberry32(19)
+  const line = (x0: number, y0: number, x1: number, y1: number, width: number): void => {
+    ctx.lineWidth = width * size
+    ctx.beginPath()
+    ctx.moveTo(x0 * size, y0 * size)
+    ctx.lineTo(x1 * size, y1 * size)
+    ctx.stroke()
+  }
+  line(0.5, 0.02, 0.5, 0.97, 0.009)
+  for (let row = 0; row < 27; row++) {
+    const y = 0.08 + (row / 27) * 0.84
+    const spread = 0.42 * Math.sin(Math.PI * Math.pow(y, 0.7))
+    for (const side of [-1, 1]) {
+      const endX = 0.5 + side * spread * (0.88 + rnd() * 0.12)
+      const endY = Math.min(0.98, y + 0.12 + rnd() * 0.04)
+      line(0.5, y, endX, endY, 0.005)
+      for (let needle = 1; needle <= 18; needle++) {
+        const f = needle / 19
+        const x = 0.5 + (endX - 0.5) * f
+        const ny = y + (endY - y) * f
+        const length = (0.022 + rnd() * 0.016) * (1 - f * 0.45)
+        line(x, ny, x + side * length, ny - length * 0.75, 0.004)
+        line(x, ny, x + side * length * 0.55, ny + length, 0.004)
+      }
+    }
+  }
+  tex.flipY = false
+  tex.anisotropy = 8
+  tex.needsUpdate = true
+  return tex
+}
 
 /**
  * Tileable water normal map generated at boot: a heightfield of layered sines plus value noise,
@@ -128,15 +172,22 @@ export function createMaterials(quality: Quality, loader: Loader): Materials {
     m.aoMapIntensity = 0.8
     return m
   }
-  const needleAlpha = loader.texture('/assets/tex/needles_alpha.png')
+  const needleAlpha = makeNeedleAlpha()
   const softenPlaster = (m: MeshStandardMaterial): MeshStandardMaterial => {
-    m.normalScale.set(0.55, 0.55)
+    m.normalScale.set(0.25, 0.25)
+    m.aoMapIntensity = 0.3
+    // Keep the CC0 surface wear as variation under a limewash, not exposed concrete patches.
+    m.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <map_fragment>',
+        '#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, diffuse, 0.62);',
+      )
+    }
     return m
   }
-  needleAlpha.flipY = false
   const water = new MeshPhysicalMaterial({
     color: new Color('#5f7a76'),
-    roughness: 0.12,
+    roughness: 0.18,
     metalness: 0,
     transmission: quality.refraction ? 0.85 : 0,
     thickness: 0.4,
@@ -150,24 +201,33 @@ export function createMaterials(quality: Quality, loader: Loader): Materials {
     polygonOffset: true,
     polygonOffsetFactor: -1,
   })
-  water.normalScale.set(0.35, 0.35)
+  water.normalScale.set(0.18, 0.18)
   waterNormals.repeat.set(24, 24)
   const puddle = water.clone()
   puddle.thickness = 0.03
   puddle.attenuationDistance = 0.4
-  puddle.roughness = 0.08
-  puddle.color.set('#8d9394')
-  puddle.normalScale.set(0.2, 0.2)
-  const paper = std('#f7e6c0', 0.9)
-  paper.emissive = new Color('#f2b45a')
-  paper.emissiveIntensity = 0.35
+  puddle.roughness = 0.16
+  puddle.color.set('#67756e')
+  puddle.normalScale.set(0.12, 0.12)
+  const paper = std('#e3decf', 0.9)
+  paper.emissive = new Color('#bfcbcf')
+  paper.emissiveIntensity = 0.1
   paper.side = DoubleSide
   const needle = std('#2f4a3e', 0.95)
   needle.side = DoubleSide
   const rice = std('#7f9a5d', 0.9)
   rice.side = DoubleSide
-  const cloth = std('#2f3a63', 0.95)
+  const cloth = std('#30394c', 0.95)
   cloth.side = DoubleSide
+  const tatami = make('tatami', { color: '#d6c98a' })
+  // The source image contains eight bordered mats. Sample only one woven interior; the room
+  // models the actual 0.9 × 1.8 m mats and cloth borders as geometry, so no miniature grid repeats.
+  for (const tex of [tatami.map, tatami.normalMap, tatami.roughnessMap, tatami.aoMap]) {
+    if (!tex) continue
+    tex.repeat.set(0.205 / 0.9, 0.445 / 1.8)
+    tex.offset.set(0.025, 0.025)
+  }
+  tatami.normalScale.set(0.4, 0.4)
   return {
     make,
     ground: make('moss', { repeat: 0.5, color: '#b9c9a8' }),
@@ -176,7 +236,7 @@ export function createMaterials(quality: Quality, loader: Loader): Materials {
     wood: make('planks', { repeat: 0.7, roughness: 0.8, color: '#a88a6c' }),
     woodDark: make('planks', { repeat: 0.7, roughness: 0.85, color: '#5a4636' }),
     thatch: make('thatch', { repeat: 0.5, color: '#e2d4b6' }),
-    tatami: make('tatami', { repeat: 1.1, color: '#d6c98a' }),
+    tatami,
     paper,
     stone: make('stone', { repeat: 0.6, color: '#cfd1cc' }),
     mud: make('mud', { repeat: 0.5, roughness: 0.6, color: '#a89478' }),

@@ -38,10 +38,11 @@
   /* UI */
   --ink: #1f2426;
   --ui-text: #f4f1ea;
-  --ui-text-muted: rgba(244, 241, 234, 0.72);
-  --ui-scrim: rgba(24, 30, 34, 0.55);
+  --ui-text-muted: rgba(244, 241, 234, 0.86);
+  --ui-scrim: rgba(15, 32, 30, 0.8);
   --ui-hairline: rgba(255, 255, 255, 0.14);
-  --accent: #d9633a;
+  --accent: #dea17c;
+  --page-gutter: clamp(1.25rem, 3.3vw, 3.5rem);
 
   /* grade stack (written by the director on the stage; defaults = exterior beat) */
   --grade-tint: #6f8090;

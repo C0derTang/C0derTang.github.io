@@ -12,6 +12,7 @@ import type { Quality } from '../config/quality'
 import { BEATS } from '../config/beats'
 import { monotoneCubic } from '../util/math'
 import type { SceneState } from './state'
+import { HEARTH_CENTER, hearthFlicker } from './world/fire'
 
 /**
  * Fog, sky/sun lights and the room lights, all driven from the state each frame. One
@@ -56,7 +57,7 @@ export function createAtmosphere(scene: Scene, quality: Quality): Atmosphere {
   lamp.position.set(1.5, 2.3, -4)
   scene.add(lamp)
   const hearth = new PointLight(new Color('#e06a3a'), 0, 6, 2)
-  hearth.position.set(0, 0.75, -3.4)
+  hearth.position.set(HEARTH_CENTER.x, 0.75, HEARTH_CENTER.z)
   scene.add(hearth)
 
   const forward = new Vector3()
@@ -69,8 +70,9 @@ export function createAtmosphere(scene: Scene, quality: Quality): Atmosphere {
       sun.intensity = state.sun.intensity
       sun.color.set(state.sun.color)
       sky.intensity = state.sky
+      scene.environmentIntensity = state.environment
       lamp.intensity = state.lamp
-      hearth.intensity = state.lamp * 0.35
+      hearth.intensity = state.lamp * 0.48 * hearthFlicker(state.time, state.reduced)
       sun.visible = !state.underwater
 
       // Fit the shadow frustum around a point ahead of the camera.

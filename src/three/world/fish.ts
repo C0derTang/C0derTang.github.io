@@ -3,6 +3,7 @@ import {
   BufferGeometry,
   CanvasTexture,
   CatmullRomCurve3,
+  CircleGeometry,
   DoubleSide,
   DynamicDrawUsage,
   Group,
@@ -13,12 +14,15 @@ import {
   MeshStandardMaterial,
   Quaternion,
   SRGBColorSpace,
+  SphereGeometry,
+  TorusGeometry,
+  TubeGeometry,
   Vector2,
   Vector3,
 } from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { Quality } from '../../config/quality'
-import { clamp, mulberry32, smoothstep } from '../../util/math'
+import { clamp, monotoneCubic, mulberry32, smoothstep } from '../../util/math'
 import type { Materials } from '../materials'
 import { WATER_Y, type SceneState } from '../state'
 import type { WorldPart } from './types'
@@ -161,99 +165,103 @@ function loopLane(
 // Body silhouettes as [fraction of length, fraction of max radius] pairs, tail (0) to nose (1).
 const KOI_SHAPE = [
   [0, 0],
-  [0.07, 0.28],
-  [0.18, 0.62],
-  [0.32, 0.92],
-  [0.46, 1.0],
-  [0.6, 0.86],
-  [0.75, 0.55],
-  [0.9, 0.22],
+  [0.025, 0.19],
+  [0.09, 0.27],
+  [0.22, 0.57],
+  [0.4, 0.92],
+  [0.56, 1.0],
+  [0.72, 0.88],
+  [0.84, 0.66],
+  [0.93, 0.46],
+  [0.985, 0.2],
   [1, 0],
 ] as const
 const LOACH_SHAPE = [
   [0, 0],
-  [0.08, 0.4],
-  [0.22, 0.75],
-  [0.4, 0.92],
-  [0.55, 1.0],
-  [0.7, 0.85],
-  [0.85, 0.5],
-  [0.95, 0.22],
+  [0.035, 0.3],
+  [0.15, 0.6],
+  [0.34, 0.87],
+  [0.55, 0.98],
+  [0.76, 1.0],
+  [0.9, 0.8],
+  [0.97, 0.46],
   [1, 0],
 ] as const
 const FUNA_SHAPE = [
   [0, 0],
-  [0.1, 0.45],
-  [0.24, 0.8],
-  [0.4, 1.0],
-  [0.55, 0.94],
-  [0.7, 0.7],
-  [0.85, 0.4],
+  [0.035, 0.2],
+  [0.14, 0.39],
+  [0.34, 0.87],
+  [0.52, 1.0],
+  [0.67, 0.89],
+  [0.82, 0.64],
+  [0.93, 0.34],
+  [0.985, 0.14],
   [1, 0],
 ] as const
+
+type FishKind = 'koi' | 'funa' | 'loach'
 
 function bodyProfile(
   shape: readonly (readonly [number, number])[],
   length: number,
   maxR: number,
 ): Vector2[] {
-  return shape.map(([fy, fr]) => new Vector2(Math.max(0, fr ?? 0) * maxR, (fy ?? 0) * length))
+  const radius = monotoneCubic(shape)
+  // Extra samples at the lips keep the rounded snout from ending in a long cone.
+  const samples = [...Array.from({ length: 25 }, (_, i) => i / 25), 0.98, 0.99, 1]
+  return samples.map((u) => new Vector2(Math.max(0, radius(u)) * maxR, u * length))
 }
 
-/** A flat kite-shaped card from `base`, reaching `length` along `outDir` and `width` wide across
- *  `spreadDir`, narrowing at the tip; vertex alpha fades from 1 at the base to `tipAlpha`. */
-function finCard(
+/** Curved fin membrane with a swept outline, a little camber, and rays converging at its root.
+ *  The atlas strip carries the rays; vertex alpha thins toward the scalloped trailing edge. */
+function finMembrane(
   base: Vector3,
-  outDir: Vector3,
-  spreadDir: Vector3,
-  length: number,
-  width: number,
-  tipAlpha: number,
+  outline: Vector3[],
+  camber: Vector3,
+  segments = 8,
 ): BufferGeometry {
-  const tip = base.clone().addScaledVector(outDir, length)
-  const a = base.clone().addScaledVector(spreadDir, width * 0.5)
-  const b = base.clone().addScaledVector(spreadDir, -width * 0.5)
-  const t1 = tip.clone().addScaledVector(spreadDir, width * 0.16)
-  const t2 = tip.clone().addScaledVector(spreadDir, -width * 0.16)
+  const edge = new CatmullRomCurve3(outline, false, 'centripetal')
+  const rings = 3
+  const positions: number[] = []
+  const uvs: number[] = []
+  const colors: number[] = []
+  const indices: number[] = []
+  for (let r = 0; r <= rings; r++) {
+    const v = r / rings
+    for (let i = 0; i <= segments; i++) {
+      const u = i / segments
+      const p = edge.getPoint(u).multiplyScalar(v).add(base)
+      p.addScaledVector(camber, Math.sin(v * Math.PI) * Math.sin(u * Math.PI))
+      positions.push(p.x, p.y, p.z)
+      uvs.push(0.02 + u * 0.7, 0.02 + v * 0.2)
+      colors.push(1, 1, 1, 1 - 0.62 * v * v)
+      if (r < rings && i < segments) {
+        const a = r * (segments + 1) + i
+        const b = a + segments + 1
+        indices.push(a, b, a + 1, a + 1, b, b + 1)
+      }
+    }
+  }
   const geo = new BufferGeometry()
-  const positions = new Float32Array([
-    a.x,
-    a.y,
-    a.z,
-    t1.x,
-    t1.y,
-    t1.z,
-    t2.x,
-    t2.y,
-    t2.z,
-    b.x,
-    b.y,
-    b.z,
-  ])
-  const e1 = new Vector3().subVectors(t1, a)
-  const e2 = new Vector3().subVectors(b, a)
-  const nrm = new Vector3().crossVectors(e1, e2).normalize()
-  const normals = new Float32Array([
-    nrm.x,
-    nrm.y,
-    nrm.z,
-    nrm.x,
-    nrm.y,
-    nrm.z,
-    nrm.x,
-    nrm.y,
-    nrm.z,
-    nrm.x,
-    nrm.y,
-    nrm.z,
-  ])
-  const uvs = new Float32Array([0.01, 0.01, 0.05, 0.01, 0.05, 0.05, 0.01, 0.05])
-  const colors = new Float32Array([1, 1, 1, 1, 1, 1, 1, tipAlpha, 1, 1, 1, tipAlpha, 1, 1, 1, 1])
-  geo.setAttribute('position', new BufferAttribute(positions, 3))
-  geo.setAttribute('normal', new BufferAttribute(normals, 3))
-  geo.setAttribute('uv', new BufferAttribute(uvs, 2))
-  geo.setAttribute('color', new BufferAttribute(colors, 4))
-  geo.setIndex([0, 1, 2, 0, 2, 3])
+  geo.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
+  geo.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2))
+  geo.setAttribute('color', new BufferAttribute(new Float32Array(colors), 4))
+  geo.setIndex(indices)
+  geo.computeVertexNormals()
+  return geo
+}
+
+/** Small anatomical details sample solid atlas swatches, preserving one material per species. */
+function detailSwatch(geo: BufferGeometry, u: number, v = 0.1): BufferGeometry {
+  const count = geo.attributes.position?.count ?? 0
+  const uv = new Float32Array(count * 2)
+  for (let i = 0; i < count; i++) {
+    uv[i * 2] = u
+    uv[i * 2 + 1] = v
+  }
+  geo.setAttribute('uv', new BufferAttribute(uv, 2))
+  geo.setAttribute('color', new BufferAttribute(new Float32Array(count * 4).fill(1), 4))
   return geo
 }
 
@@ -268,60 +276,133 @@ interface SpeciesTuning {
   ampBurst: number
 }
 
-/** Body (a Lathe of revolution, squashed sideways for a laterally-compressed silhouette) plus
- *  tail/pectoral/dorsal fin cards, merged into one draw call with a shared vertex-alpha channel. */
-function buildFishGeometry(sp: SpeciesTuning): BufferGeometry {
+/** Rounded body, swept fins, eyes, lips and gill seams share one instanced geometry and atlas. */
+function buildFishGeometry(sp: SpeciesTuning, kind: FishKind): BufferGeometry {
   const L = sp.length
   const R = sp.maxR
   const profile = bodyProfile(sp.shape, L, R)
+  const radiusAt = monotoneCubic(sp.shape)
   const body = new LatheGeometry(profile, sp.radialSegments)
   body.scale(sp.squashX, 1, 1)
   const bodyVerts = body.attributes.position?.count ?? 0
   const bodyColor = new Float32Array(bodyVerts * 4).fill(1)
   body.setAttribute('color', new BufferAttribute(bodyColor, 4))
+  const bodyUv = body.attributes.uv
+  if (bodyUv) for (let i = 0; i < bodyUv.count; i++) bodyUv.setY(i, 0.25 + bodyUv.getY(i) * 0.75)
+  const pieces: BufferGeometry[] = [body]
+  const fork = kind === 'loach' ? 0.21 : 0.12
+  pieces.push(
+    finMembrane(
+      new Vector3(0, 0.025 * L, 0),
+      [
+        new Vector3(0, -0.008 * L, -0.18 * R),
+        new Vector3(0, -0.1 * L, -0.95 * R),
+        new Vector3(0, -0.22 * L, -1.2 * R),
+        new Vector3(0, -0.2 * L, -0.65 * R),
+        new Vector3(0, -fork * L, 0),
+        new Vector3(0, -0.2 * L, 0.65 * R),
+        new Vector3(0, -0.22 * L, 1.2 * R),
+        new Vector3(0, -0.1 * L, 0.95 * R),
+        new Vector3(0, -0.008 * L, 0.18 * R),
+      ],
+      new Vector3(R * 0.14, 0, 0),
+      12,
+    ),
+  )
+  for (const side of [-1, 1]) {
+    pieces.push(
+      finMembrane(
+        new Vector3(side * R * sp.squashX * 0.83, 0.69 * L, -R * 0.24),
+        [
+          new Vector3(side * R * 0.12, 0.015 * L, R * 0.1),
+          new Vector3(side * R * 0.75, -0.025 * L, -R * 0.1),
+          new Vector3(side * R * 1.18, -0.09 * L, -R * 0.35),
+          new Vector3(side * R * 0.8, -0.15 * L, -R * 0.32),
+          new Vector3(0, -0.14 * L, -R * 0.04),
+        ],
+        new Vector3(0, 0, -R * 0.14),
+      ),
+      finMembrane(
+        new Vector3(side * R * sp.squashX * 0.64, 0.34 * L, -R * 0.5),
+        [
+          new Vector3(0, 0.025 * L, 0),
+          new Vector3(side * R * 0.62, -0.025 * L, -R * 0.36),
+          new Vector3(side * R * 0.5, -0.09 * L, -R * 0.42),
+          new Vector3(0, -0.09 * L, 0),
+        ],
+        new Vector3(0, 0, -R * 0.08),
+        6,
+      ),
+    )
 
-  const tail = finCard(
-    new Vector3(0, 0.03 * L, 0),
-    new Vector3(0, -1, 0),
-    new Vector3(0, 0, 1),
-    0.17 * L,
-    R * 2.0,
-    0.3,
-  )
-  const pecL = finCard(
-    new Vector3(R * sp.squashX * 0.75, 0.6 * L, 0),
-    new Vector3(1, -0.2, -0.3).normalize(),
-    new Vector3(0, 0, 1),
-    R * 1.3,
-    R * 1.05,
-    0.35,
-  )
-  const pecR = finCard(
-    new Vector3(-R * sp.squashX * 0.75, 0.6 * L, 0),
-    new Vector3(-1, -0.2, -0.3).normalize(),
-    new Vector3(0, 0, 1),
-    R * 1.3,
-    R * 1.05,
-    0.35,
-  )
-  const dorsal = finCard(
-    new Vector3(0, 0.48 * L, R * 0.7),
-    new Vector3(0, 0, 1),
-    new Vector3(0, 1, 0),
-    R * 1.3,
-    0.12 * L,
-    0.4,
-  )
+    const headR = radiusAt(0.87) * R
+    const eyeR = R * 0.115
+    const eyePos = new Vector3(side * headR * sp.squashX * 0.97, 0.87 * L, headR * 0.28)
+    const eye = new SphereGeometry(eyeR, 8, 6)
+    eye.scale(0.6, 1, 1)
+    eye.translate(eyePos.x, eyePos.y, eyePos.z)
+    const pupil = new SphereGeometry(eyeR, 8, 4)
+    pupil.scale(0.24, 0.63, 0.7)
+    pupil.translate(eyePos.x + side * eyeR * 0.52, eyePos.y + eyeR * 0.08, eyePos.z)
+    pieces.push(detailSwatch(eye, 0.8125), detailSwatch(pupil, 0.895))
 
-  const merged = mergeGeometries([body, tail, pecL, pecR, dorsal], false)
+    const gillPoints = Array.from({ length: 7 }, (_, i) => {
+      const a = -0.9 + (i / 6) * 2.05
+      const fy = 0.735 + 0.035 * Math.abs(Math.sin(a))
+      const r = radiusAt(fy) * R * 1.012
+      return new Vector3(side * Math.cos(a) * r * sp.squashX, fy * L, Math.sin(a) * r)
+    })
+    pieces.push(
+      detailSwatch(
+        new TubeGeometry(new CatmullRomCurve3(gillPoints), 8, R * 0.009, 4, false),
+        0.966,
+      ),
+    )
+  }
+  pieces.push(
+    finMembrane(
+      new Vector3(0, 0.5 * L, R * 0.7),
+      [
+        new Vector3(0, -0.27 * L, -R * 0.06),
+        new Vector3(0, -0.14 * L, R * 0.48),
+        new Vector3(0, 0.025 * L, R * 0.72),
+        new Vector3(0, 0.15 * L, R * 0.9),
+        new Vector3(0, 0.24 * L, R * 0.04),
+      ],
+      new Vector3(R * 0.08, 0, 0),
+    ),
+    finMembrane(
+      new Vector3(0, 0.26 * L, -R * 0.64),
+      [
+        new Vector3(0, -0.13 * L, R * 0.2),
+        new Vector3(0, -0.09 * L, -R * 0.58),
+        new Vector3(0, 0.025 * L, -R * 0.58),
+        new Vector3(0, 0.095 * L, -R * 0.04),
+      ],
+      new Vector3(R * 0.06, 0, 0),
+      6,
+    ),
+  )
+  const lips = new TorusGeometry(R * 0.105, R * 0.024, 4, 12)
+  lips.rotateX(Math.PI / 2)
+  lips.scale(1, 1, 0.7)
+  lips.translate(0, L * 0.997, -R * 0.025)
+  const mouth = new CircleGeometry(R * 0.085, 12)
+  mouth.rotateX(Math.PI / 2)
+  mouth.scale(1, 1, 0.7)
+  mouth.translate(0, L * 0.999, -R * 0.025)
+  pieces.push(detailSwatch(lips, 0.8125, 0.1875), detailSwatch(mouth, 0.895))
+
+  const merged = mergeGeometries(pieces, false)
   if (!merged) throw new Error('fish geometry merge failed')
+  for (const piece of pieces) piece.dispose()
   return merged
 }
 
 /* ---------------------------- albedo ---------------------------- */
 
-function fishAlbedo(kind: 'koi' | 'funa' | 'loach', seed: number, mudColor: string): CanvasTexture {
-  const size = 128
+function fishAlbedo(kind: FishKind, seed: number, mudColor: string): CanvasTexture {
+  const size = 256
   const canvas = document.createElement('canvas')
   canvas.width = size
   canvas.height = size
@@ -329,43 +410,89 @@ function fishAlbedo(kind: 'koi' | 'funa' | 'loach', seed: number, mudColor: stri
   const ctx = canvas.getContext('2d')
   if (!ctx) return tex
   const rnd = mulberry32(seed)
-  ctx.fillStyle = kind === 'koi' ? '#f3ecdb' : kind === 'funa' ? '#7c854c' : mudColor
+  const bodyHeight = size * 0.75
+  ctx.fillStyle = kind === 'koi' ? '#ece5d4' : kind === 'funa' ? '#959780' : mudColor
   ctx.fillRect(0, 0, size, size)
   if (kind === 'koi') {
-    for (let i = 0; i < 4; i++) {
-      const x = 24 + rnd() * (size - 48)
-      const y = 16 + rnd() * (size - 32)
-      const r = 16 + rnd() * 20
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r)
-      g.addColorStop(0, 'rgba(214, 88, 28, 1)')
-      g.addColorStop(0.72, 'rgba(214, 88, 28, 1)')
-      g.addColorStop(1, 'rgba(214, 88, 28, 0)')
-      ctx.fillStyle = g
-      ctx.beginPath()
-      ctx.ellipse(x, y, r, r * (0.65 + rnd() * 0.3), rnd() * Math.PI, 0, Math.PI * 2)
-      ctx.fill()
+    // Overlapping soft-edged islands give the koi an irregular patch boundary.
+    for (let i = 0; i < 5; i++) {
+      const cx = 22 + rnd() * (size - 44)
+      const cy = 12 + rnd() * (bodyHeight - 24)
+      const radius = 18 + rnd() * 25
+      for (let lobe = 0; lobe < 3; lobe++) {
+        const x = cx + (rnd() - 0.5) * radius
+        const y = cy + (rnd() - 0.5) * radius
+        const r = radius * (0.65 + rnd() * 0.35)
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r)
+        g.addColorStop(0, '#bc5030')
+        g.addColorStop(0.88, '#bc5030')
+        g.addColorStop(1, 'rgba(188, 80, 48, 0)')
+        ctx.fillStyle = g
+        ctx.beginPath()
+        ctx.ellipse(x, y, r, r * 0.78, rnd() * Math.PI, 0, Math.PI * 2)
+        ctx.fill()
+      }
     }
   } else if (kind === 'loach') {
-    ctx.fillStyle = 'rgba(35, 26, 18, 0.55)'
-    for (let i = 0; i < 12; i++) {
+    ctx.fillStyle = 'rgba(35, 26, 18, 0.45)'
+    for (let i = 0; i < 34; i++) {
       const x = rnd() * size
-      const y = rnd() * size
-      const r = 2 + rnd() * 3.5
+      const y = rnd() * bodyHeight
+      const r = 2 + rnd() * 4.5
       ctx.beginPath()
       ctx.ellipse(x, y, r, r * 0.7, rnd() * Math.PI, 0, Math.PI * 2)
       ctx.fill()
     }
-  } else {
-    const g = ctx.createLinearGradient(0, 0, 0, size)
-    g.addColorStop(0, 'rgba(35, 45, 18, 0.4)')
-    g.addColorStop(0.55, 'rgba(35, 45, 18, 0)')
-    g.addColorStop(1, 'rgba(224, 214, 172, 0.3)')
-    ctx.fillStyle = g
-    ctx.fillRect(0, 0, size, size)
   }
-  // a small plain swatch the fin cards' UVs sample (their own UV lives outside the body pattern)
-  ctx.fillStyle = kind === 'koi' ? '#e7d6bd' : kind === 'funa' ? '#596634' : '#42331f'
-  ctx.fillRect(0, 0, size * 0.08, size * 0.08)
+  // Lathe U wraps the body: dorsal at the seam, lighter belly halfway around.
+  const countershade = ctx.createLinearGradient(0, 0, size, 0)
+  countershade.addColorStop(0, 'rgba(23, 39, 29, 0.28)')
+  countershade.addColorStop(0.24, 'rgba(23, 39, 29, 0)')
+  countershade.addColorStop(0.5, 'rgba(255, 241, 204, 0.2)')
+  countershade.addColorStop(0.76, 'rgba(23, 39, 29, 0)')
+  countershade.addColorStop(1, 'rgba(23, 39, 29, 0.28)')
+  ctx.fillStyle = countershade
+  ctx.fillRect(0, 0, size, bodyHeight)
+  if (kind !== 'loach') {
+    ctx.lineWidth = 0.65
+    for (let row = 0; row < 19; row++) {
+      for (let col = 0; col < 30; col++) {
+        const x = col * 9 + (row % 2) * 4.5
+        const y = 40 + row * 7.5
+        ctx.strokeStyle = 'rgba(35, 46, 35, 0.13)'
+        ctx.beginPath()
+        ctx.ellipse(x, y, 4.3, 4.5, 0, 0.05, Math.PI - 0.05)
+        ctx.stroke()
+        ctx.strokeStyle = 'rgba(248, 245, 218, 0.13)'
+        ctx.beginPath()
+        ctx.ellipse(x, y - 0.8, 4.2, 4.4, 0, 0.1, Math.PI - 0.1)
+        ctx.stroke()
+      }
+    }
+  }
+  // The lower atlas strip supplies translucent fin rays and solid eye/gill/lip swatches.
+  const fin = ctx.createLinearGradient(0, 196, 0, 256)
+  fin.addColorStop(0, kind === 'loach' ? '#776951' : '#aeb7a4')
+  fin.addColorStop(1, kind === 'loach' ? '#68543c' : '#d8cfb5')
+  ctx.fillStyle = fin
+  ctx.fillRect(0, 194, 194, 62)
+  ctx.lineWidth = 1.05
+  ctx.strokeStyle = 'rgba(54, 66, 47, 0.3)'
+  for (let x = 4; x < 194; x += 12) {
+    ctx.beginPath()
+    ctx.moveTo(x, 256)
+    ctx.quadraticCurveTo(x + 1.5, 222, x - 1, 194)
+    ctx.stroke()
+  }
+  for (const [x, y, color] of [
+    [200, 224, '#a79968'],
+    [222, 224, '#101b18'],
+    [240, 224, kind === 'loach' ? '#433e2d' : '#686d58'],
+    [200, 200, kind === 'loach' ? '#b3a17c' : '#ccb899'],
+  ] as const) {
+    ctx.fillStyle = color
+    ctx.fillRect(x, y, 16, 20)
+  }
   tex.colorSpace = SRGBColorSpace
   tex.needsUpdate = true
   return tex
@@ -526,7 +653,7 @@ const KOI_TUNING: SpeciesTuning = {
   maxR: 0.115,
   squashX: 0.78,
   shape: KOI_SHAPE,
-  radialSegments: 12,
+  radialSegments: 16,
   k: (2 * Math.PI) / 0.6,
   ampGlide: 0.013,
   ampBurst: 0.052,
@@ -536,7 +663,7 @@ const FUNA_TUNING: SpeciesTuning = {
   maxR: 0.085,
   squashX: 0.58,
   shape: FUNA_SHAPE,
-  radialSegments: 10,
+  radialSegments: 14,
   k: (2 * Math.PI) / 0.32,
   ampGlide: 0.009,
   ampBurst: 0.032,
@@ -546,7 +673,7 @@ const LOACH_TUNING: SpeciesTuning = {
   maxR: 0.032,
   squashX: 0.88,
   shape: LOACH_SHAPE,
-  radialSegments: 8,
+  radialSegments: 10,
   k: (2 * Math.PI) / 0.15,
   ampGlide: 0,
   ampBurst: 0.026,
@@ -554,26 +681,27 @@ const LOACH_TUNING: SpeciesTuning = {
 
 const KOI_LOOPS: readonly (readonly [number, number, number, number, number, number])[] = [
   [-3, -1.5, -26, 6, 8, 0.65],
-  [4, -1.4, -40, 7, 9, 0.7],
+  // Keep the rear lane ahead of the final camera and inside the deep pool's far rim.
+  [0, -1.4, -39, 2.7, 1.8, 0.45],
 ]
 const FUNA_SCHOOL_CENTERS: readonly (readonly [number, number, number])[] = [
   [-9, -0.8, -22],
   [9, -0.75, -30],
-  [-7, -0.85, -42],
-  [8, -0.8, -48],
+  [-5, -0.85, -36],
+  [4, -0.8, -38],
 ]
 
 function buildSpecies(
   tuning: SpeciesTuning,
   count: number,
   mudColor: string,
-  kind: 'koi' | 'funa' | 'loach',
+  kind: FishKind,
   seed: number,
 ): { mesh: InstancedMesh; waveArr: Float32Array; waveAttr: InstancedBufferAttribute } {
-  const geo = buildFishGeometry(tuning)
+  const geo = buildFishGeometry(tuning, kind)
   const mat = new MeshStandardMaterial({
     map: fishAlbedo(kind, seed, mudColor),
-    roughness: kind === 'koi' ? 0.5 : kind === 'funa' ? 0.55 : 0.6,
+    roughness: kind === 'koi' ? 0.36 : kind === 'funa' ? 0.43 : 0.46,
     metalness: 0,
     vertexColors: true,
     transparent: true,
@@ -646,7 +774,7 @@ export function createFish(mats: Materials, quality: Quality): WorldPart {
   for (let sIdx = 0; sIdx < funaSchools; sIdx++) {
     const c = FUNA_SCHOOL_CENTERS[sIdx % FUNA_SCHOOL_CENTERS.length]
     if (!c) continue
-    const curve = loopLane(rnd, c[0], c[1], c[2], 3 + rnd(), 4 + rnd(), 0.35)
+    const curve = loopLane(rnd, c[0], c[1], c[2], 3 + rnd(), (sIdx < 2 ? 4 : 2.5) + rnd(), 0.35)
     const total = curve.getLength()
     const leader: Rig = {
       curve,
@@ -682,8 +810,8 @@ export function createFish(mats: Materials, quality: Quality): WorldPart {
 
   const loachRigs: Rig[] = []
   for (let i = 0; i < loachCount; i++) {
-    const cx = -14 + rnd() * 28
-    const cz = -12 - rnd() * 48
+    const cx = -12 + rnd() * 24
+    const cz = -22 - rnd() * 16
     const curve = loopLane(rnd, cx, -2.7, cz, 1 + rnd() * 1.2, 1.4 + rnd() * 1.4, 0.1)
     const total = curve.getLength()
     const restS = 2 + rnd() * 2

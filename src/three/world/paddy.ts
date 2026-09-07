@@ -11,7 +11,6 @@ import {
   MeshStandardMaterial,
   Object3D,
   PlaneGeometry,
-  RepeatWrapping,
   SRGBColorSpace,
 } from 'three'
 import type { Quality } from '../../config/quality'
@@ -19,13 +18,14 @@ import { mulberry32 } from '../../util/math'
 import type { Materials } from '../materials'
 import { WATER_Y, type SceneState } from '../state'
 import type { WorldPart } from './types'
+import { createFieldRain } from './field-rain'
 
 /**
  * The flooded paddy: the rain-pocked reflective water surface, the two earth dikes that divide
  * it, and the instanced field of rice between them. Everything here is pure in `state.t` /
- * `state.time`: the water's base ripple normals scroll via `mats.update(time)` (set centrally in
- * app.ts), the rain-ring bump/glint and the rice wind sway are closed forms of one time uniform
- * written in `update()` (frozen at 0 under reduced motion), never integrated on the CPU.
+ * `state.time`: rain impacts deform the otherwise calm surface at the same points where drops
+ * land; rice wind sway is a closed form of time. Both freeze under reduced motion, and neither
+ * integrates state on the CPU.
  */
 
 const DIKE_X = [-2.6, 2.6] as const
@@ -145,112 +145,6 @@ function makeBladeTexture(w = 128, h = 256, seed = 31, blades = 6): CanvasTextur
   return tex
 }
 
-/** Rain-impact rings baked as (nearest-seed distance / its radius, that seed's phase) in R/G,
- * tiled and sampled twice at different scales/offsets in the water shader so an expanding-ring
- * mask falls out as a closed form of one time uniform: no simulation, no CPU integration. */
-function makeRainRingTexture(size = 256, seed = 41, count = 42): CanvasTexture {
-  const rnd = mulberry32(seed)
-  const seeds = Array.from({ length: count }, () => ({
-    x: rnd() * size,
-    y: rnd() * size,
-    r: size * (0.05 + rnd() * 0.09),
-    phase: rnd(),
-  }))
-  const canvas = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = size
-  const tex = new CanvasTexture(canvas)
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return tex
-  const img = ctx.createImageData(size, size)
-  const d = img.data
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      let best = 999
-      let phase = 0
-      for (const s of seeds) {
-        let dx = Math.abs(x - s.x)
-        dx = Math.min(dx, size - dx)
-        let dy = Math.abs(y - s.y)
-        dy = Math.min(dy, size - dy)
-        const dist = Math.hypot(dx, dy) / s.r
-        if (dist < best) {
-          best = dist
-          phase = s.phase
-        }
-      }
-      const i = (y * size + x) * 4
-      d[i] = Math.round(Math.min(1, best / 1.6) * 255)
-      d[i + 1] = Math.round(phase * 255)
-      d[i + 2] = 0
-      d[i + 3] = 255
-    }
-  }
-  ctx.putImageData(img, 0, 0)
-  tex.wrapS = RepeatWrapping
-  tex.wrapT = RepeatWrapping
-  tex.needsUpdate = true
-  return tex
-}
-
-/**
- * Patch the shared water material once with a rain-ring bump + glint layer. Adds one varying
- * (the plane's own local xy, so the ring tiling is independent of the base ripple normal map's
- * scrolling UV transform) and a small helper sampled at the normal stage and again just before
- * tonemapping. Also patches `mats.puddle`-style clones only if they are made *after* this runs;
- * `materials.ts` clones `puddle` from `water` before this module is constructed, so it is
- * unaffected here (this only ever mutates the one shared `mats.water` instance).
- */
-function patchRainRings(
-  mat: Materials['water'],
-  tex: CanvasTexture,
-  uniforms: { uRainTime: { value: number }; uRainAlpha: { value: number } },
-): void {
-  mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uRainTime = uniforms.uRainTime
-    shader.uniforms.uRainAlpha = uniforms.uRainAlpha
-    shader.uniforms.uRainTex = { value: tex }
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vRainPos;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRainPos = position.xy;')
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        'void main() {',
-        `varying vec2 vRainPos;
-        uniform float uRainTime;
-        uniform float uRainAlpha;
-        uniform sampler2D uRainTex;
-        float rainRingAt(vec2 p) {
-          vec2 uvA = p * 0.16;
-          vec4 a = texture2D(uRainTex, uvA);
-          float ageA = fract(uRainTime * 0.2 + a.g);
-          float mA = smoothstep(0.07, 0.0, abs(a.r - ageA)) * (1.0 - ageA);
-          vec2 uvB = p * 0.121 + vec2(3.7, 9.1);
-          vec4 b = texture2D(uRainTex, uvB);
-          float ageB = fract(uRainTime * 0.24 + b.g + 0.5);
-          float mB = smoothstep(0.07, 0.0, abs(b.r - ageB)) * (1.0 - ageB);
-          return max(mA, mB);
-        }
-        void main() {`,
-      )
-      .replace(
-        '#include <normal_fragment_maps>',
-        `#include <normal_fragment_maps>
-        {
-          float h0 = rainRingAt(vRainPos);
-          float hX = rainRingAt(vRainPos + vec2(0.4, 0.0));
-          float hY = rainRingAt(vRainPos + vec2(0.0, 0.4));
-          normal = normalize(normal + vec3((hX - h0) * 1.8, (hY - h0) * 1.8, 0.0) * uRainAlpha);
-        }`,
-      )
-      .replace(
-        'vec3 outgoingLight = totalDiffuse + totalSpecular + totalEmissiveRadiance;',
-        `vec3 outgoingLight = totalDiffuse + totalSpecular + totalEmissiveRadiance;
-        outgoingLight += rainRingAt(vRainPos) * uRainAlpha * vec3(0.4, 0.42, 0.4);`,
-      )
-  }
-}
-
 /** Wind sway patched into the rice material: a closed form of `uTime`, amplitude growing with
  * blade height, gusts travelling along x. Local `transformed` is object space (pre-instance), so
  * the sway rotates and scales correctly with each instance's own matrix. */
@@ -280,9 +174,9 @@ export function createPaddy(mats: Materials, quality: Quality): WorldPart {
   const group = new Group()
   const bladeTex = makeBladeTexture()
 
-  // --- water: the shared physical material, patched once with the rain-ring layer -------------
-  const waterUniforms = { uRainTime: { value: 0 }, uRainAlpha: { value: 1 } }
-  patchRainRings(mats.water, makeRainRingTexture(), waterUniforms)
+  // --- water: calm between the impacts of the rain ------------------------------------------
+  const fieldRain = createFieldRain(mats.water, quality)
+  group.add(fieldRain.group)
   const water = new Mesh(new PlaneGeometry(90, 44, 24, 12), mats.water)
   water.rotation.x = -Math.PI / 2
   water.position.set(0, WATER_Y, -30)
@@ -380,8 +274,7 @@ export function createPaddy(mats: Materials, quality: Quality): WorldPart {
     update(state: SceneState) {
       const t = state.reduced ? 0 : state.time / 1000
       riceUniforms.uTime.value = t
-      waterUniforms.uRainTime.value = t
-      waterUniforms.uRainAlpha.value = state.rain.alpha
+      fieldRain.update?.(state)
     },
   }
 }

@@ -16,6 +16,22 @@ interface SceneDebugState {
   doors: number
   underwater: boolean
   depth: number
+  fog: { color: string; density: number }
+  sun: { color: string; intensity: number }
+  sky: number
+  environment: number
+  grade: { tint: string; strength: number; vignette: number; saturation: number }
+  rain: { alpha: number; speed: number; slant: number; windX: number; windZ: number }
+}
+interface SceneAudioDebugStatus {
+  enabled: boolean
+  volume: number
+  contextState: string
+  active: boolean
+  paused: boolean
+  sourceCount: number
+  contextCount: number
+  mix: { gains: Record<string, number>; master: number; lowpassHz: number } | null
 }
 interface BenchDebugReport {
   done: boolean
@@ -38,6 +54,7 @@ declare global {
       freeze(on: boolean): void
       readonly state: SceneDebugState | undefined
       readonly ready: boolean
+      readonly audio: SceneAudioDebugStatus | null
     }
     __bench?: BenchDebugReport
   }

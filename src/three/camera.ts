@@ -25,6 +25,11 @@ const track = (keys: readonly Key[]) => monotoneCubic(keys)
 const px = track([
   [0, -0.8],
   [T.exterior[1], 0],
+  [T.enter[0] + 0.055, 0],
+  // Step beside the hearth so the centered kettle and chain stay clear of the walking line.
+  [T.enter[1] - 0.04, -0.95],
+  [T.doors[0] + 0.05, -0.95],
+  [T.doors[1], 0],
   [1, 0],
 ])
 const py = track([
@@ -50,6 +55,10 @@ const pz = track([
 ])
 const tx = track([
   [0, 0],
+  [T.enter[1] - 0.04, 0],
+  [T.enter[1], -0.95],
+  [T.turn[1], -0.95],
+  [T.doors[1], 0],
   [1, 0],
 ])
 const ty = track([
@@ -80,17 +89,17 @@ const fov = track([
   [T.paddy[0] + 0.04, 58],
   [1, 58],
 ])
-/** Face the camera looks at during the turn (0..4); the dwell plateaus are exact holds. */
+/** Long eased turns between exact holds, so wheel gestures cannot flick past a room face. */
 const faces = track([
   [T.turn[0], 0],
-  [0.335, 0],
-  [0.345, 1],
-  [0.375, 1],
-  [0.39, 2],
-  [0.42, 2],
-  [0.435, 3],
-  [0.465, 3],
-  [0.48, 4],
+  [0.329, 0],
+  [0.357, 1],
+  [0.371, 1],
+  [0.401, 2],
+  [0.419, 2],
+  [0.449, 3],
+  [0.463, 3],
+  [0.492, 4],
   [T.turn[1], 4],
 ])
 

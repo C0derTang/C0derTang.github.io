@@ -20,6 +20,8 @@ export interface SceneState {
   fog: { color: string; density: number }
   sun: { intensity: number; color: string }
   sky: number
+  /** Outdoor image-based fill stays constant across the house threshold. */
+  environment: number
   lamp: number
   focus: { distance: number; range: number; bokeh: number }
   grade: { tint: string; strength: number; vignette: number; saturation: number }
@@ -34,6 +36,16 @@ const slotOpacity = (t: number, w: readonly [number, number, number, number]): n
   smoothstep(w[0], w[1], t) * (1 - smoothstep(w[2], w[3], t))
 
 const T = BEATS
+/** One complete, stationary view per beat for reduced-motion visitors. */
+const STILL_T = {
+  exterior: 0.04,
+  enter: 0.28,
+  turn: 0.405,
+  doors: 0.55,
+  paddy: 0.68,
+  dive: 0.82,
+  underwater: 0.93,
+} as const satisfies Record<BeatId, number>
 const num = (keys: readonly (readonly [number, number])[]) => monotoneCubic(keys)
 const col =
   (keys: readonly (readonly [number, string])[]) =>
@@ -54,51 +66,43 @@ const col =
     return lerpColor(a[1], b[1], span > 0 ? clamp((t - a[0]) / span, 0, 1) : 0)
   }
 
-// Atmosphere keys: outside a grey-blue rain haze, inside a faint warm haze, underwater teal.
+// One overcast daylight level on both sides of the doors, calibrated to the sheltered view.
+// Only immersion changes the world's lighting, haze, and grade; local lamps warm the room.
 const fogColor = col([
-  [0, '#b9c3c6'],
-  [T.enter[0], '#b9c3c6'],
-  [T.enter[1], '#8d8378'],
-  [T.doors[1], '#8d8378'],
-  [T.paddy[0] + 0.03, '#b6c0c1'],
-  [0.79, '#b6c0c1'],
+  [0, '#a6b0b2'],
+  [0.79, '#a6b0b2'],
   [0.81, '#2f6b6a'],
   [1, '#1e4f5a'],
 ])
 const fogDensity = num([
-  [0, 0.024],
-  [T.enter[0], 0.026],
-  [T.enter[1], 0.06],
-  [T.doors[1], 0.06],
-  [T.paddy[0] + 0.03, 0.022],
+  [0, 0.022],
   [0.79, 0.022],
   [0.81, 0.16],
   [1, 0.18],
 ])
 const sunIntensity = num([
-  [0, 1.8],
-  [T.enter[0], 1.8],
-  [T.enter[1], 0.4],
-  [T.doors[1], 0.4],
-  [T.paddy[0] + 0.03, 1.9],
-  [0.79, 1.9],
+  [0, 0.14],
+  [0.79, 0.14],
   [0.81, 0.25],
   [1, 0.2],
 ])
 const skyIntensity = num([
-  [0, 0.9],
-  [T.enter[1], 0.4],
-  [T.doors[1], 0.4],
-  [T.paddy[0] + 0.03, 0.95],
-  [0.79, 0.95],
+  [0, 0.12],
+  [0.79, 0.12],
   [0.81, 0.3],
   [1, 0.3],
+])
+const environment = num([
+  [0, 0.16],
+  [0.79, 0.16],
+  [0.81, 1],
+  [1, 1],
 ])
 const lamp = num([
   [0, 3],
   [T.exterior[1], 3],
-  [T.enter[1], 9],
-  [T.doors[1], 9],
+  [T.enter[1], 4.8],
+  [T.doors[1], 4.8],
   [T.paddy[0] + 0.04, 2],
   [1, 0],
 ])
@@ -131,30 +135,20 @@ const bokeh = num([
   [1, 4],
 ])
 const gradeTint = col([
-  [0, '#6f8090'],
-  [T.enter[0], '#6f8090'],
-  [T.enter[1], '#8a6a4a'],
-  [T.doors[1], '#8a6a4a'],
-  [T.paddy[0] + 0.03, '#7f9a8c'],
-  [0.79, '#7f9a8c'],
+  [0, '#8a6a4a'],
+  [0.79, '#8a6a4a'],
   [0.81, '#2f6b6a'],
   [1, '#1e4f5a'],
 ])
 const gradeStrength = num([
-  [0, 0.16],
-  [T.enter[1], 0.22],
-  [T.doors[1], 0.22],
-  [T.paddy[0] + 0.03, 0.14],
-  [0.79, 0.14],
+  [0, 0.22],
+  [0.79, 0.22],
   [0.81, 0.35],
   [1, 0.35],
 ])
 const vignette = num([
-  [0, 0.35],
-  [T.enter[1], 0.5],
-  [T.doors[1], 0.5],
-  [T.paddy[0] + 0.03, 0.3],
-  [0.79, 0.3],
+  [0, 0.5],
+  [0.79, 0.5],
   [0.81, 0.55],
   [1, 0.55],
 ])
@@ -191,26 +185,21 @@ export function computeState(
   const u = {} as Record<BeatId, number>
   for (const id of BEAT_IDS) u[id] = local(t, BEATS[id])
 
-  let poseT = t
-  if (quality.reducedMotion) {
-    const [, end] = BEATS[beat]
-    poseT = beat === 'exterior' ? 0.04 : beat === 'turn' ? 0.405 : Math.min(end, BEATS.paddy[1])
-  }
+  const poseT = quality.reducedMotion ? STILL_T[beat] : t
   const pose = cameraPose(poseT)
   const doors = quality.reducedMotion
-    ? t >= BEATS.doors[0] + 0.02
+    ? poseT >= BEATS.doors[0] + 0.02
       ? 1
       : 0
     : easeInOutCubic(u.doors)
   const depth = Math.max(0, WATER_Y - pose.y)
   const underwater = depth > 0.03
 
-  // Apparent rain: scrolling toward the rain hurries and stretches it; the world wind blows
-  // from the left of the yard view, so the slant follows the yaw during the turn.
+  // Scroll speed changes only streak length. World wind stays fixed as the viewer turns or moves.
+  // Slant is the diagnostic view-relative projection of that wind, not a world-space direction.
   const yawRad = (pose.yaw * Math.PI) / 180
-  const speed = 1 + clamp(Math.abs(scrollVel * czRate(t)) / 40, 0, 1.5)
+  const speed = quality.reducedMotion ? 1 : 1 + clamp(Math.abs(scrollVel * czRate(t)) / 40, 0, 1.5)
   const slant = Math.cos(yawRad)
-  const windStrength = 0.35 + 0.25 * smoothstep(BEATS.paddy[0], BEATS.paddy[1], t)
 
   const slots = {} as Record<SlotId, number>
   for (const s of SLOTS) slots[s.id] = slotOpacity(t, s.window)
@@ -225,23 +214,24 @@ export function computeState(
     doors,
     depth,
     underwater,
-    fog: { color: fogColor(t), density: fogDensity(t) },
-    sun: { intensity: sunIntensity(t), color: '#d7dde0' },
-    sky: skyIntensity(t),
-    lamp: lamp(t),
-    focus: { distance: focusDistance(t), range: focusRange(t), bokeh: bokeh(t) },
+    fog: { color: fogColor(poseT), density: fogDensity(poseT) },
+    sun: { intensity: sunIntensity(poseT), color: '#d7dde0' },
+    sky: skyIntensity(poseT),
+    environment: environment(poseT),
+    lamp: lamp(poseT),
+    focus: { distance: focusDistance(poseT), range: focusRange(poseT), bokeh: bokeh(poseT) },
     grade: {
-      tint: gradeTint(t),
-      strength: gradeStrength(t),
-      vignette: vignette(t),
-      saturation: saturation(t),
+      tint: gradeTint(poseT),
+      strength: gradeStrength(poseT),
+      vignette: vignette(poseT),
+      saturation: saturation(poseT),
     },
     rain: {
-      alpha: rainAlpha(t),
+      alpha: rainAlpha(poseT),
       speed,
       slant,
-      windX: windStrength * slant,
-      windZ: -0.1 * windStrength * Math.sin(yawRad),
+      windX: 0.35,
+      windZ: 0,
     },
     slots,
     hint: 1 - smoothstep(0.03, 0.05, t),

@@ -30,9 +30,9 @@ function isSoftwareGl(): boolean {
 
 /**
  * Desktop is the target. Small or touch viewports get a `low` tier that still runs (DPR 1, no
- * depth of field, no refraction, fewer instances) but is not tuned; a software rasterizer gets
- * the minimum of everything so headless test runs stay fast. `?tier=high|low`, `?dpr=<n>` and
- * `?post=off` override detection for benches and screenshots.
+ * refraction, fewer instances) but is not tuned; a software rasterizer gets the minimum of
+ * everything so headless test runs stay fast. `?tier=high|low` and `?dpr=<n>` override detection
+ * for benches and screenshots. Depth of field stays off so the whole walk remains in focus.
  */
 export function detectQuality(params?: URLSearchParams): Quality {
   const forced = params?.get('tier')
@@ -40,12 +40,11 @@ export function detectQuality(params?: URLSearchParams): Quality {
   const software = isSoftwareGl()
   const low = forced === 'low' ? true : forced === 'high' ? false : small || software
   const dprParam = Number(params?.get('dpr') ?? 0)
-  const postOff = params?.get('post') === 'off' || software
   return {
     tier: low ? 'low' : 'high',
     software,
     dpr: dprParam > 0 ? dprParam : software ? 0.5 : low ? 1 : 1.5,
-    dof: !low && !postOff,
+    dof: false,
     refraction: !low,
     shadowSize: software ? 512 : low ? 1024 : 1536,
     rainCount: software ? 400 : low ? 1500 : 6000,
