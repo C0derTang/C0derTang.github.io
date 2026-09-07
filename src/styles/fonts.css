@@ -1,0 +1,5 @@
+/* Latin subsets only. Never import the packages' index.css (it references every subset). */
+@import '@fontsource/shippori-mincho/latin-500.css';
+@import '@fontsource/shippori-mincho/latin-700.css';
+@import '@fontsource/zen-kaku-gothic-new/latin-400.css';
+@import '@fontsource/zen-kaku-gothic-new/latin-500.css';

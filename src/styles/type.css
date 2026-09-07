@@ -1,0 +1,62 @@
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  margin: 0 0 0.5em;
+  line-height: 1.14;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+h1 {
+  font-size: clamp(2.8rem, 4.6vw, 4.5rem);
+  max-width: 10ch;
+}
+h2 {
+  font-size: clamp(1.9rem, 2.7vw, 2.55rem);
+}
+p {
+  margin: 0 0 0.9em;
+  font-size: 0.98rem;
+  line-height: 1.75;
+  max-width: 36ch;
+  text-wrap: pretty;
+}
+.slot p:not(.eyebrow, .links) {
+  color: var(--ui-text-muted);
+}
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+  margin-bottom: 1.4rem;
+}
+.chapter-number {
+  color: var(--accent);
+  margin-right: 0.3rem;
+}
+.eyebrow-divider {
+  opacity: 0.45;
+}
+a {
+  color: var(--accent);
+  text-underline-offset: 0.35em;
+  text-decoration-thickness: 1px;
+  transition:
+    color 160ms ease,
+    text-decoration-color 160ms ease;
+}
+a:hover {
+  color: var(--paper-lit);
+  text-decoration-color: currentColor;
+}
+a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 6px;
+  border-radius: 1px;
+}

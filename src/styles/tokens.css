@@ -1,0 +1,115 @@
+:root {
+  /* rain and mist */
+  --mist: #c5cdd0;
+
+  /* foliage */
+  --green-deep: #2f4a3e;
+
+  /* house materials (wash bases) */
+  --wood-dark: #3a2a22;
+  --plaster: #bdb097;
+
+  /* interior */
+  --tatami: #b3aa6c;
+  --paper: #f1e9d6;
+  --paper-lit: #f7e6c0;
+  --paper-cool: #d9d5c8;
+  --lamp: #f2b45a;
+  --lamp-glow: #e89a3c;
+  --ember: #d9633a;
+
+  /* paddy */
+  --paddy-water: #5f7a76;
+  --paddy-water-deep: #3e5753;
+  --mud: #4a3d2e;
+  --mud-light: #6a5a44;
+
+  /* underwater ramp (top -> bottom) */
+  --uw-surface: #6fa39a;
+  --uw-mid: #2f6b6a;
+  --uw-deep: #1c3f4e;
+  --uw-abyss: #142a3a;
+
+  /* fish */
+  --loach-spot: #2f2c22;
+  --funa: #7d8a70;
+  --funa-belly: #c7cbb5;
+
+  /* UI */
+  --ink: #1f2426;
+  --ui-text: #f4f1ea;
+  --ui-text-muted: rgba(244, 241, 234, 0.86);
+  --ui-scrim: rgba(15, 32, 30, 0.8);
+  --ui-hairline: rgba(255, 255, 255, 0.14);
+  --accent: #dea17c;
+  --page-gutter: clamp(1.25rem, 3.3vw, 3.5rem);
+
+  /* grade stack (written by the director on the stage; defaults = exterior beat) */
+  --grade-tint: #6f8090;
+  --grade-strength: 0.25;
+  --glow-color: #f2b45a;
+  --glow-x: 50%;
+  --glow-y: 50%;
+  --glow-strength: 0;
+  --vignette: 0.25;
+  --fog-color: #c5cdd0;
+  --fog-far: 0.55;
+  --fog-mid: 0.3;
+  --fog-near: 0.08;
+  --grain: 0.07;
+
+  /* layout */
+  --scroll-len: 800;
+  --vx: 50%;
+  --vy: 58%;
+
+  --font-display: 'Shippori Mincho', Georgia, 'Times New Roman', serif;
+  --font-body: 'Zen Kaku Gothic New', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* light model (realism pass) */
+:root {
+  --water-sheen: #d8dee0;
+}
+
+/* ink and wash (brush pass): paper ground, ink by depth, washes from the rainy-valley photo */
+:root {
+  --paper-sky: #e8ebe8;
+  --paper-sky-low: #d6dcdb;
+  --paper-sky-horizon: #cfd7d6;
+  --cloud: #eef1ef;
+  --ink: #1a1c1e;
+  --ink-mid: #3b4448;
+  --ink-far: #6b767c;
+  --ridge-far: #8a9aa3;
+  --ridge-mid: #66797f;
+  --hills: #3f5a4b;
+  --cedar-wash: #33503f;
+  --cedar-wash-2: #4c6b4a;
+  --hedge: #4a6d3f;
+  --rice-wash: #9fb95a;
+  --rice-bright: #c3cf6a;
+  --road: #8d9394;
+  --puddle: #c9d0d0;
+  --stone-wall: #8d918a;
+  --stone-wall-dark: #6d716b;
+  --thatch-wash: #7a6a4f;
+  --thatch-wash-dark: #4b4335;
+  --wood-wash: #6b5340;
+  --wood-wash-dark: #3d2e24;
+  --window-amber: #f0c070;
+  --lamp-core: #fff1c8;
+  --hydrangea-violet: #8e8cc9;
+  --hydrangea-pink: #b48fc4;
+  --hydrangea-blue: #6f95cc;
+  --leaf: #3d6b3f;
+  --bicycle: #8a4a3a;
+  --tyre: #2b2d2f;
+  --indigo-wash: #2f3a63;
+  --uw-wash: #3d7a76;
+  --uw-wash-deep: #1f4d55;
+  --mud-wash: #5a4a3a;
+  --koi-orange-wash: #e0703a;
+  --loach-wash: #6b6349;
+  --funa-wash: #6d7a58;
+}

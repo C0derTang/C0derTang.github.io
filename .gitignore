@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .playwright-mcp/
+*.tsbuildinfo
+test-results/
+playwright-report/

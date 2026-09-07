@@ -1,0 +1,107 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  background: #142a3a;
+  color: var(--ui-text);
+  font-family: var(--font-body);
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+html.js:not(.scene-ready, .no-scene) {
+  overflow: hidden;
+}
+::selection {
+  background: #c68b64;
+  color: #14211c;
+}
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 10;
+  padding: 0.65rem 1rem;
+  background: var(--paper);
+  color: var(--ink);
+  transform: translateY(-180%);
+}
+.skip-link:focus {
+  transform: none;
+}
+.scroll-track {
+  padding-bottom: 100vh;
+}
+.scroll-track .beat {
+  height: calc(var(--len) * (var(--scroll-len) - 100) * 1vh);
+}
+.noscript {
+  margin: 2rem auto;
+  padding: 1rem;
+  color: var(--ink);
+}
+/* The same semantic story is usable with no JavaScript or no WebGL. */
+:is(html:not(.js), html.no-scene),
+:is(html:not(.js), html.no-scene) body {
+  background: var(--paper-sky);
+  color: var(--ink);
+}
+:is(html:not(.js), html.no-scene)
+  :is(#gl, #curtain, .scroll-track, .hint, .journey, .scene-caption),
+:is(html:not(.js), html.no-scene) #overlay::before,
+:is(html:not(.js), html.no-scene) .slot::before {
+  display: none;
+}
+:is(html:not(.js), html.no-scene) #overlay {
+  position: static;
+  pointer-events: auto;
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 0 var(--page-gutter) 3rem;
+}
+:is(html:not(.js), html.no-scene) .scene-header {
+  position: static;
+  padding: 2rem 0;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid rgb(28 42 36 / 18%);
+  text-shadow: none;
+}
+:is(html:not(.js), html.no-scene) .slot {
+  opacity: 1 !important;
+  visibility: visible !important;
+  position: static;
+  transform: none;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 2.5rem 0;
+  background: none;
+  color: var(--ink);
+  box-shadow: none;
+  text-shadow: none;
+  border: 0;
+  border-bottom: 1px solid rgb(28 42 36 / 14%);
+}
+:is(html:not(.js), html.no-scene) .slot p {
+  color: #4d5b52;
+  max-width: 48ch;
+}
+:is(html:not(.js), html.no-scene) .slot :is(a, .chapter-number) {
+  color: #875134;
+}
+#scene-note {
+  padding: 1rem 1.25rem;
+  border-left: 2px solid #875134;
+  color: #4d5b52;
+  max-width: none;
+  background: rgb(255 255 255 / 35%);
+}
+/* ?freeze / director.freeze(true): deterministic frames for screenshots. */
+html.frozen *,
+html.frozen *::before,
+html.frozen *::after {
+  animation-play-state: paused !important;
+}
