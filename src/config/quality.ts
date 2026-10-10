@@ -8,6 +8,8 @@ export interface Quality {
   /** water transmission (refraction pass) */
   refraction: boolean
   shadowSize: number
+  /** anisotropic filtering taps for the surface textures */
+  anisotropy: number
   rainCount: number
   riceCount: number
   reducedMotion: boolean
@@ -28,10 +30,14 @@ function isSoftwareGl(): boolean {
   }
 }
 
+/** Rendered pixels the `low` tier aims for (about a third of the desktop target's). */
+const LOW_PIXELS = 800_000
+
 /**
- * Desktop is the target. Small or touch viewports get a `low` tier that still runs (DPR 1, no
- * refraction, fewer instances) but is not tuned; a software rasterizer gets the minimum of
- * everything so headless test runs stay fast. `?tier=high|low` and `?dpr=<n>` override detection
+ * Desktop gets `high`. Small or touch viewports get `low`: half-resolution textures and a small
+ * HDRI (`config/assets.ts`), no refraction, fewer instances, and a pixel ratio that spends a
+ * fixed pixel budget, so a phone renders sharper than a tablet for the same cost. A software
+ * rasterizer gets the minimum of everything so headless test runs stay fast. `?tier=high|low` and `?dpr=<n>` override detection
  * for benches and screenshots. Depth of field stays off so the whole walk remains in focus.
  */
 export function detectQuality(params?: URLSearchParams): Quality {
@@ -40,13 +46,15 @@ export function detectQuality(params?: URLSearchParams): Quality {
   const software = isSoftwareGl()
   const low = forced === 'low' ? true : forced === 'high' ? false : small || software
   const dprParam = Number(params?.get('dpr') ?? 0)
+  const lowDpr = Math.min(1.5, Math.max(1, Math.sqrt(LOW_PIXELS / (innerWidth * innerHeight))))
   return {
     tier: low ? 'low' : 'high',
     software,
-    dpr: dprParam > 0 ? dprParam : software ? 0.5 : low ? 1 : 1.5,
+    dpr: dprParam > 0 ? dprParam : software ? 0.5 : low ? lowDpr : 1.5,
     dof: false,
     refraction: !low,
     shadowSize: software ? 512 : low ? 1024 : 1536,
+    anisotropy: software ? 1 : low ? 4 : 8,
     rainCount: software ? 400 : low ? 1500 : 6000,
     riceCount: software ? 1000 : low ? 4000 : 20000,
     reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,

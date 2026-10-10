@@ -8,12 +8,11 @@ import {
   type Texture,
 } from 'three'
 import { mulberry32 } from '../util/math'
+import { DEFERRED_SETS, TEX_MAPS, textureUrl, type TexMap, type TexSet } from '../config/assets'
 import type { Quality } from '../config/quality'
 import type { Loader } from './loader'
 
-/** CC0 PBR sets under public/assets/tex/<name>/{color,normal,rough,ao}.jpg (see ATTRIBUTION.md). */
-export type TexSet =
-  'thatch' | 'planks' | 'plaster' | 'gravel' | 'moss' | 'stone' | 'mud' | 'bark' | 'tatami'
+export type { TexSet }
 
 export interface PbrOpts {
   /** texture repeats per metre of UV (set the mesh UVs in metres) */
@@ -103,22 +102,27 @@ function makeNeedleAlpha(size = 512): CanvasTexture {
 }
 
 /**
- * Tileable water normal map generated at boot: a heightfield of layered sines plus value noise,
- * converted to a tangent-space normal map by finite differences (no CC0 water normals exist).
+ * Tileable water normal map generated at boot: a heightfield of layered sines, converted to a
+ * tangent-space normal map (no CC0 water normals exist). The slope of each sine is evaluated in
+ * closed form, scaled to equal the central difference over one texel either side.
  */
 export function makeWaterNormals(size = 512, seed = 7): CanvasTexture {
   const rnd = mulberry32(seed)
-  const waves = Array.from({ length: 7 }, () => ({
-    kx: Math.round((rnd() - 0.5) * 12),
-    ky: Math.round((rnd() - 0.5) * 12),
-    amp: 0.3 + rnd() * 0.7,
-    phase: rnd() * Math.PI * 2,
-  }))
-  const h = (u: number, v: number): number => {
-    let s = 0
-    for (const w of waves) s += w.amp * Math.sin(2 * Math.PI * (w.kx * u + w.ky * v) + w.phase)
-    return s
-  }
+  const e = 1 / size
+  const waves = Array.from({ length: 7 }, () => {
+    const kx = Math.round((rnd() - 0.5) * 12)
+    const ky = Math.round((rnd() - 0.5) * 12)
+    const amp = 0.3 + rnd() * 0.7
+    const phase = rnd() * Math.PI * 2
+    return {
+      kx,
+      ky,
+      phase,
+      // (sin(a + d) - sin(a - d)) / 2e = cos(a) sin(d) / e, with d the phase step of one texel
+      sx: (amp * Math.sin(2 * Math.PI * kx * e)) / e,
+      sy: (amp * Math.sin(2 * Math.PI * ky * e)) / e,
+    }
+  })
   const canvas = document.createElement('canvas')
   canvas.width = size
   canvas.height = size
@@ -127,13 +131,17 @@ export function makeWaterNormals(size = 512, seed = 7): CanvasTexture {
   if (!ctx) return tex
   const img = ctx.createImageData(size, size)
   const d = img.data
-  const e = 1 / size
   for (let y = 0; y < size; y++)
     for (let x = 0; x < size; x++) {
       const u = x / size
       const v = y / size
-      const dx = (h(u + e, v) - h(u - e, v)) / (2 * e)
-      const dy = (h(u, v + e) - h(u, v - e)) / (2 * e)
+      let dx = 0
+      let dy = 0
+      for (const w of waves) {
+        const c = Math.cos(2 * Math.PI * (w.kx * u + w.ky * v) + w.phase)
+        dx += w.sx * c
+        dy += w.sy * c
+      }
       const k = 0.012
       let nx = -dx * k
       let ny = -dy * k
@@ -159,15 +167,22 @@ export function createMaterials(quality: Quality, loader: Loader): Materials {
   const waterNormals = makeWaterNormals()
   const make = (set: TexSet, opts: PbrOpts = {}): MeshStandardMaterial => {
     const repeat = opts.repeat ?? 1
-    const base = `/assets/tex/${set}`
+    const tex = (map: TexMap, srgb = false): Texture =>
+      loader.texture(textureUrl(quality.tier, set, map), {
+        srgb,
+        repeat,
+        deferred: DEFERRED_SETS.has(set) ? TEX_MAPS[map] : undefined,
+      })
+    // One packed map feeds both slots: three.js samples occlusion from red, roughness from green.
+    const orm = tex('orm')
     const m = new MeshStandardMaterial({
       color: new Color(opts.color ?? '#ffffff'),
       roughness: opts.roughness ?? 1,
       metalness: opts.metalness ?? 0,
-      map: loader.texture(`${base}/color.jpg`, { srgb: true, repeat }),
-      normalMap: loader.texture(`${base}/normal.jpg`, { repeat }),
-      roughnessMap: loader.texture(`${base}/rough.jpg`, { repeat }),
-      aoMap: loader.texture(`${base}/ao.jpg`, { repeat }),
+      map: tex('color', true),
+      normalMap: tex('normal'),
+      roughnessMap: orm,
+      aoMap: orm,
     })
     m.aoMapIntensity = 0.8
     return m
@@ -222,7 +237,7 @@ export function createMaterials(quality: Quality, loader: Loader): Materials {
   const tatami = make('tatami', { color: '#d6c98a' })
   // The source image contains eight bordered mats. Sample only one woven interior; the room
   // models the actual 0.9 × 1.8 m mats and cloth borders as geometry, so no miniature grid repeats.
-  for (const tex of [tatami.map, tatami.normalMap, tatami.roughnessMap, tatami.aoMap]) {
+  for (const tex of [tatami.map, tatami.normalMap, tatami.roughnessMap]) {
     if (!tex) continue
     tex.repeat.set(0.205 / 0.9, 0.445 / 1.8)
     tex.offset.set(0.025, 0.025)

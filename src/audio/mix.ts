@@ -4,7 +4,16 @@ import { HEARTH_CENTER } from '../three/world/fire'
 import { PUDDLES } from '../three/world/puddles'
 import { clamp01, lerp, smoothstep } from '../util/math'
 
-export type SoundLayer = 'foliage' | 'puddles' | 'roof' | 'field' | 'fire' | 'door' | 'bubbles'
+export const SOUND_LAYERS = [
+  'foliage',
+  'puddles',
+  'roof',
+  'field',
+  'fire',
+  'door',
+  'bubbles',
+] as const
+export type SoundLayer = (typeof SOUND_LAYERS)[number]
 
 export interface SoundMix {
   gains: Record<SoundLayer, number>

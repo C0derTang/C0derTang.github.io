@@ -9,6 +9,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from 'three'
+import { hdriUrl } from '../config/assets'
 import type { Quality } from '../config/quality'
 import { createAtmosphere } from './atmosphere'
 import { createLoader } from './loader'
@@ -35,14 +36,30 @@ export interface App {
   update(state: SceneState): void
   resize(w: number, h: number): void
   stats(): FrameStats
+  /** GPU resources currently resident */
+  memory(): { textures: number; geometries: number }
   readonly ready: Promise<void>
+  /** resolves once the deferred assets are in as well */
+  readonly settled: Promise<void>
   readonly camera: PerspectiveCamera
 }
 
-/** Assets the boot loads; empty entries mean flat placeholder materials. */
-export const HDRI_URL = '/assets/hdri/kloofendal_overcast_1k.hdr'
+/**
+ * The camera path is framed for a landscape screen. On a portrait one the same vertical angle
+ * would leave a sliver of it, so the angle widens to keep the horizontal view of a 3:4 frame.
+ */
+const PORTRAIT_ASPECT = 0.75
+function fitFov(fov: number, aspect: number): number {
+  if (aspect >= PORTRAIT_ASPECT) return fov
+  const half = Math.tan((fov * Math.PI) / 360) * (PORTRAIT_ASPECT / aspect)
+  return (Math.atan(half) * 360) / Math.PI
+}
 
-export function createApp(canvas: HTMLCanvasElement, quality: Quality): App {
+/**
+ * `eager` holds the curtain for every asset, deferred ones included, so a frame at any `t` is
+ * complete the moment the scene is ready (frozen frames, screenshots, benches).
+ */
+export function createApp(canvas: HTMLCanvasElement, quality: Quality, eager = false): App {
   const renderer = new WebGLRenderer({
     canvas,
     antialias: false,
@@ -60,7 +77,11 @@ export function createApp(canvas: HTMLCanvasElement, quality: Quality): App {
 
   const scene = new Scene()
   const camera = new PerspectiveCamera(55, 1, 0.05, 900)
-  const loader = createLoader()
+  const loader = createLoader(
+    Math.min(quality.anisotropy, renderer.capabilities.getMaxAnisotropy()),
+  )
+  // Upload late textures as they arrive instead of on the frame that first shows them.
+  loader.onDeferred((texture) => renderer.initTexture(texture))
   const materials = createMaterials(quality, loader)
   const atmosphere = createAtmosphere(scene, quality)
 
@@ -80,11 +101,13 @@ export function createApp(canvas: HTMLCanvasElement, quality: Quality): App {
   scene.add(rain.mesh, rain.splashes)
 
   const post = createPost(renderer, scene, camera, quality)
+  // Boot phases for the DevTools timeline: world built, assets resident, shaders warm.
+  performance.mark('scene:built')
 
   // Environment lighting from the overcast HDRI (PMREM); the hemisphere light stands in until then.
   const pmrem = new PMREMGenerator(renderer)
   const ready = loader
-    .hdri(HDRI_URL)
+    .hdri(hdriUrl(quality.tier))
     .then((tex) => {
       scene.environment = pmrem.fromEquirectangular(tex).texture
       scene.environmentIntensity = 1.0
@@ -94,8 +117,9 @@ export function createApp(canvas: HTMLCanvasElement, quality: Quality): App {
     .catch(() => {
       /* no HDRI: hemisphere light only */
     })
-    .then(() => loader.ready)
+    .then(() => (eager ? loader.settled : loader.ready))
     .then(async () => {
+      performance.mark('scene:loaded')
       // Warm every shader behind the curtain: compileAsync only sees visible objects, so make
       // everything visible for the compile, then render a few poses (yard, room, paddy, under
       // water) so the transmission target, the depth of field and the underwater set are all
@@ -109,7 +133,9 @@ export function createApp(canvas: HTMLCanvasElement, quality: Quality): App {
       })
       await renderer.compileAsync(scene, camera)
       for (const h of hidden) h.o.visible = false
+      performance.mark('scene:compiled')
       for (const t of [0.02, 0.4, 0.7, 0.9]) update(computeState(t, 0, 1 / 60, 0, quality))
+      performance.mark('scene:warm')
     })
 
   const target = new Vector3()
@@ -122,8 +148,9 @@ export function createApp(canvas: HTMLCanvasElement, quality: Quality): App {
       camera.position.y += 0.04 * Math.sin(state.time / 1400) * Math.min(1, state.depth / 0.6)
     target.set(p.tx, p.ty, p.tz)
     camera.lookAt(target)
-    if (camera.fov !== p.fov) {
-      camera.fov = p.fov
+    const fov = fitFov(p.fov, camera.aspect)
+    if (camera.fov !== fov) {
+      camera.fov = fov
       camera.updateProjectionMatrix()
     }
     for (const part of parts) part.update?.(state)
@@ -147,7 +174,14 @@ export function createApp(canvas: HTMLCanvasElement, quality: Quality): App {
     stats() {
       return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }
     },
+    memory() {
+      return {
+        textures: renderer.info.memory.textures,
+        geometries: renderer.info.memory.geometries,
+      }
+    },
     ready,
+    settled: ready.then(() => loader.settled),
     camera,
   }
 }

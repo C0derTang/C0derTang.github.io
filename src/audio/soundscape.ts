@@ -1,6 +1,6 @@
 import type { SceneState } from '../three/state'
 import { createSoundBuffers } from './buffers'
-import { computeSoundMix, type SoundLayer, type SoundMix } from './mix'
+import { computeSoundMix, SOUND_LAYERS, type SoundLayer, type SoundMix } from './mix'
 
 export interface SoundStatus {
   enabled: boolean
@@ -19,13 +19,19 @@ export interface Soundscape {
   setVolume(volume: number): void
   setPaused(paused: boolean): void
   dispose(): void
-  /** Resolves false when recorded audio is unavailable; visual loading may continue. */
-  readonly ready: Promise<boolean>
+  /**
+   * Fetch and prepare the loops; resolves false when recorded audio is unavailable. Enabling
+   * sound calls this itself, so calling it earlier only spares the first click the wait.
+   */
+  load(): Promise<boolean>
   readonly enabled: boolean
   readonly status: SoundStatus
 }
 
-/** Prepare PCM behind the curtain; the live context is created only by the sound button. */
+/**
+ * Nothing is fetched or decoded until `load()` or the first enable, so sound never holds the
+ * curtain; the live context is created only by the sound button.
+ */
 export function createSoundscape(onEnabledChange: (enabled: boolean) => void): Soundscape | null {
   if (typeof AudioContext === 'undefined' || typeof OfflineAudioContext === 'undefined') return null
   let offline: OfflineAudioContext
@@ -35,8 +41,8 @@ export function createSoundscape(onEnabledChange: (enabled: boolean) => void): S
     return null
   }
   let buffers: Record<SoundLayer, AudioBuffer> | null = null
-  let layers: SoundLayer[] = []
-  const loadAbort = new AbortController()
+  let loading: Promise<boolean> | null = null
+  let loadAbort: AbortController | null = null
   const gains = new Map<SoundLayer, GainNode>()
   const targets = new WeakMap<AudioParam, number>()
   let context: AudioContext | null = null
@@ -87,7 +93,7 @@ export function createSoundscape(onEnabledChange: (enabled: boolean) => void): S
     master.gain.value = 0
     filter.connect(master)
     master.connect(context.destination)
-    for (const layer of layers) {
+    for (const layer of SOUND_LAYERS) {
       const gain = context.createGain()
       gain.gain.value = 0
       gain.connect(filter)
@@ -161,7 +167,7 @@ export function createSoundscape(onEnabledChange: (enabled: boolean) => void): S
     disposed = true
     enabled = false
     revision++
-    loadAbort.abort()
+    loadAbort?.abort()
     clearTimeout(loadTimer)
     loadTimer = undefined
     buffers = null
@@ -181,37 +187,36 @@ export function createSoundscape(onEnabledChange: (enabled: boolean) => void): S
   window.addEventListener('pagehide', onPageHide)
   window.addEventListener('pageshow', onPageShow)
 
-  const ready = new Promise<boolean>((resolve) => {
-    let settled = false
-    const finish = (loaded: Record<SoundLayer, AudioBuffer> | null): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(loadTimer)
-      loadTimer = undefined
-      loadAbort.signal.removeEventListener('abort', aborted)
-      if (loaded && !disposed && !loadAbort.signal.aborted) {
-        buffers = loaded
-        layers = Object.keys(loaded) as SoundLayer[]
-        resolve(true)
-      } else {
-        loadAbort.abort()
-        resolve(false)
-      }
-    }
-    const aborted = (): void => finish(null)
-    loadAbort.signal.addEventListener('abort', aborted, { once: true })
-    // Fetch is cancellable; a decode already underway may finish later, so finish also guards it.
-    loadTimer = setTimeout(() => loadAbort.abort(), 12000)
-    void Promise.resolve()
-      .then(() => (loadAbort.signal.aborted ? null : createSoundBuffers(offline, loadAbort.signal)))
+  function load(): Promise<boolean> {
+    if (disposed) return Promise.resolve(false)
+    if (loading) return loading
+    const abort = new AbortController()
+    loadAbort = abort
+    // Fetch is cancellable; a decode already underway may finish later, so the result is rechecked.
+    loadTimer = setTimeout(() => abort.abort(), 12000)
+    const attempt = createSoundBuffers(offline, abort.signal)
       .then(
-        (loaded) => finish(loaded),
-        () => finish(null),
+        (loaded) => {
+          if (disposed || abort.signal.aborted) return false
+          buffers = loaded
+          return true
+        },
+        () => false,
       )
-  })
+      .then((ok) => {
+        clearTimeout(loadTimer)
+        loadTimer = undefined
+        abort.abort()
+        // A failed attempt may be retried by the next enable.
+        if (!ok && loading === attempt) loading = null
+        return ok
+      })
+    loading = attempt
+    return attempt
+  }
 
   return {
-    ready,
+    load,
     update(state) {
       if (disposed) return
       mix = computeSoundMix(state)
@@ -219,7 +224,7 @@ export function createSoundscape(onEnabledChange: (enabled: boolean) => void): S
       if (resync) {
         stopSources()
         const start = context.currentTime + 0.02
-        for (const layer of layers) {
+        for (const layer of SOUND_LAYERS) {
           const gain = gains.get(layer)
           if (!gain) continue
           const source = context.createBufferSource()
@@ -231,7 +236,7 @@ export function createSoundscape(onEnabledChange: (enabled: boolean) => void): S
         }
         resync = false
       }
-      for (const layer of layers) {
+      for (const layer of SOUND_LAYERS) {
         const gain = gains.get(layer)
         if (gain) target(gain.gain, mix.gains[layer], layer === 'door' ? 0.025 : 0.12)
       }
@@ -240,16 +245,20 @@ export function createSoundscape(onEnabledChange: (enabled: boolean) => void): S
     },
     async setEnabled(next) {
       if (disposed) return
-      if (next && !buffers) throw new Error('Recorded sound is not ready')
       enabled = next
       if (next) {
         try {
-          await resume()
+          // Resume first, synchronously, so the click's user activation is not lost to the fetch.
+          const [, loaded] = await Promise.all([resume(), load()])
+          if (!loaded) throw new Error('Recorded sound is unavailable')
         } catch (error) {
+          if (disposed) return
           enabled = false
+          silence()
           onEnabledChange(false)
           throw error
         }
+        if (!enabled) return
       } else silence()
       if (!disposed) onEnabledChange(enabled)
     },

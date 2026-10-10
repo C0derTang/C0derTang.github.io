@@ -6,7 +6,8 @@ flooded rice paddy, and sink under the water to the fish (rice-fish polyculture)
 realism: real geometry, CC0 PBR materials, soft shadows, fog, rain, wet surfaces, water with
 refraction, depth of field. No routing, no framework, no CMS. Scrolling is the only input; every
 frame is a deterministic function of scroll progress `t` plus wall-clock time for ambient
-motion. Desktop is the target. Live at https://c0dertang.github.io/ (GitHub Pages, `gh-pages`
+motion. Desktop is the reference look; phones get a tuned `low` tier that loads about a tenth of
+the bytes. Live at https://c0dertang.github.io/ (GitHub Pages, `gh-pages`
 branch, served at `/`, no CNAME).
 
 ## Stack
@@ -26,18 +27,27 @@ younger than that will not install.
 - `pnpm build` typecheck + `vite build` -> `dist/`; read the gz size table
 - `pnpm preview` serve `dist/` on :4173
 - `pnpm test:e2e` Playwright smoke on headless Chromium (software WebGL, minimal tier)
+- `pnpm assets` rebuild `public/assets/tex/{high,low}` and the 256 px HDRI from `assets-src/`
+  (Playwright's Chromium does the encoding); commit the output
 - `BENCH=1 pnpm bench` frame-time sweep in the installed Chrome (real GPU, headed)
 
 ## Layout
 
 - `index.html` head/meta, `<canvas id="gl">`, the loading curtain, `#overlay` (crawlable
   placeholder copy), `.scroll-track` (seven beat spacers)
-- `public/assets/` CC0 textures (`tex/<set>/{color,normal,rough,ao}.jpg`), the overcast HDRI,
-  the fir twig alpha card, `ATTRIBUTION.md` (every asset: source, license, what changed)
-- `src/main.ts` boot: quality tier, app, overlay, HUD, Lenis, director, dev hooks, `window.__scene`
+- `assets-src/tex/<set>/{color,normal,rough,ao}.jpg` the CC0 texture sources (not served)
+- `scripts/build-assets.mjs` sources -> shipped WebP tiers and the small HDRI
+- `public/assets/` what ships: `tex/<tier>/<set>/{color,normal,orm}.webp` (`orm` = AO in red,
+  roughness in green), the overcast HDRI at 1K and 256 px, the rain recordings, `ATTRIBUTION.md`
+  (every asset: source, license, what changed)
+- `src/main.ts` the entry, kept tiny: picks the quality tier, preloads the curtain's assets,
+  then imports `boot.ts`
+- `src/boot.ts` the scene chunk: app, overlay, HUD, Lenis, director, sound, dev hooks,
+  `window.__scene`
+- `src/config/assets.ts` asset URLs per tier, which texture sets are deferred past the curtain
 - `src/config/beats.ts` BEATS table, slot windows, scroll length — the timing tuning surface
-- `src/config/quality.ts` tiers: `high` (desktop), `low` (small/touch viewports, untuned),
-  software WebGL (headless test runs)
+- `src/config/quality.ts` tiers: `high` (desktop), `low` (small/touch viewports: half-res
+  textures, small HDRI, fewer instances, pixel-budget DPR), software WebGL (headless test runs)
 - `src/scroll/director.ts` the single rAF loop: lenis.raf -> t -> subscribers -> anime engine.update()
 - `src/three/app.ts` renderer, scene assembly, per-frame update order, `stats()`
 - `src/three/state.ts` pure `computeState(t, time, dt, scrollVel, quality)`: pose, doors, depth,
@@ -47,10 +57,13 @@ younger than that will not install.
 - `src/three/materials.ts` the material registry (`make(set, opts)` over the CC0 sets, water,
   procedural water normals)
 - `src/three/post.ts` one EffectPass: depth of field (reads the main depth), grade, vignette, SMAA
-- `src/three/loader.ts` LoadingManager, textures, HDRI
+- `src/three/loader.ts` two-stage loading (curtain, then deferred), one shared image per URL,
+  off-thread decode, HDRI
 - `src/three/world/*` one module per part of the world (`{ group, update? }`): house + yard,
   interior, terrain, paddy, underwater, fish, rain
-- `src/ui/overlay.ts`, `src/ui/debug.ts` (HUD), `src/ui/bench.ts`
+- `src/audio/*` the soundscape: nothing is fetched or decoded until the sound button (desktop
+  prepares it after the scene has settled)
+- `src/ui/overlay.ts`, `src/ui/sound.ts`, `src/ui/debug.ts` (HUD), `src/ui/bench.ts`
 - `src/styles/*` `tokens.css`, `fonts.css`, `base.css`, `gl.css`, `type.css`, `overlay.css`
 - `e2e/smoke.spec.ts` every beat without console errors, the underwater flip, pose purity
   forward vs backward; `e2e/bench.spec.ts` frame-time gates
@@ -76,6 +89,8 @@ underwater .85–1.
   inside `update(state)`.
 - Materials come from the registry: `mats.make(set, { repeat, roughness, color })` with UVs laid
   out in metres. Wetness is lower roughness plus a darker tint. No unlit surfaces except sprites.
+  Variants of a set share its images (the loader hands every texture for a URL the same
+  source), so another `make()` costs no download or GPU memory; never load a texture around it.
 - Shadows: only solid architecture, trunks, walls, posts, the lantern, bicycle and pole cast;
   instanced foliage, rice, florets and cards never do; grounds and floors receive. One shadow
   light whose frustum is fitted to the view every frame; no cascades.
@@ -83,12 +98,21 @@ underwater .85–1.
   uniform. Rain instances inside the house box are collapsed in the shader.
 - Post: keep it one EffectPass. The depth of field reads the main depth texture; never add a
   pass that re-renders the scene.
-- Assets: CC0 only, listed in `public/assets/ATTRIBUTION.md`; 1K JPG colour and normal maps,
-  512 roughness and AO; procedural everything else (no glTF pipeline). Everything loads behind
-  the curtain before the first frame.
+- Assets: CC0 only, listed in `public/assets/ATTRIBUTION.md`; WebP built by `pnpm assets` from
+  the JPG sources (`high`: 1K colour and normal, 512 packed AO/roughness; `low`: half of each);
+  procedural everything else (no glTF pipeline). Never hand-edit `public/assets/tex`.
+- Loading is staged. The curtain waits only for what the opening view shows; sets listed in
+  `DEFERRED_SETS` (`config/assets.ts`: tatami, mud) load after it lifts and render as a flat
+  stand-in until they arrive. A set may be deferred only if nothing before the enter beat shows
+  it. `?freeze`, `?t=` and `?bench` are eager: they hold the curtain for everything, so frames
+  stay deterministic (`window.__scene.settled`). Sound never holds the curtain.
+- Phones: the `low` tier is tuned for load time and memory, and portrait screens widen the
+  camera angle in `app.ts` (`fitFov`) rather than changing the path; `state.pose` stays the
+  same on every screen. Frame time on real phones is not measured anywhere yet.
 - Budgets: JS <= 400 KB gz; draw calls <= 220 and triangles <= 1.5 M per frame (`?debug` HUD
   and `renderer.info` via `window.__scene.app.stats()`); p95 frame <= 16.7 ms at 1440x900 DPR
-  1.5 on an Apple-silicon integrated GPU (`pnpm bench`); assets <= 12 MB.
+  1.5 on an Apple-silicon integrated GPU (`pnpm bench`); shipped assets <= 9 MB in total, and
+  <= 1.5 MB transferred before the curtain lifts on the `low` tier.
 - TS strict + `noUncheckedIndexedAccess`; no `!` assertions (use `mustGet`). Prettier formats
   everything; ESLint is type-aware.
 
@@ -100,6 +124,11 @@ underwater .85–1.
   .41, .46, .55, .68, .8, .9, 1 (the scratchpad `gl.mjs` does this and prints draw calls,
   triangles and console errors). Headless Chromium only proves it runs: SwiftShader is slow and
   drops to the software tier.
+- Phone load: the same script with `devices['Pixel 7']`, CDP `Network.emulateNetworkConditions`
+  (fast 4G: 9 Mbps, 165 ms) and `Emulation.setCPUThrottlingRate` 4, timing navigation to
+  `window.__scene.ready` and summing `encodedDataLength`. The `scene:built` / `scene:loaded` /
+  `scene:compiled` / `scene:warm` performance marks split the boot. Reference: about 2.6 s and
+  1.4 MB on fast 4G.
 - Purity: a backward scrub 1 -> .55 -> .41 -> .28 -> 0 gives the same `window.__scene.state.pose`
   as forward; `pnpm test:e2e` checks it.
 - `BENCH=1 pnpm bench` for frame time, long tasks, draw calls, triangles (`BENCH_GPU=1` gates p95).
@@ -118,5 +147,6 @@ merge via PR.
 - add dependencies beyond three/postprocessing/lenis/animejs/fontsource without asking
 - use npm/yarn, commit `package-lock.json`, or bump TypeScript to 7 while typescript-eslint lacks support
 - integrate motion on the CPU per frame, add a second render of the scene, or cast shadows from instances
-- tune for phones (they get the untuned `low` tier)
+- make the curtain wait for sound, for a deferred set, or for anything the opening view does not show
+- change the desktop look to save bytes for phones; put the saving in the `low` tier
 - commit directly to `main`

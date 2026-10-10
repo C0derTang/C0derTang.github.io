@@ -54,6 +54,7 @@ declare global {
       freeze(on: boolean): void
       readonly state: SceneDebugState | undefined
       readonly ready: boolean
+      readonly settled: boolean
       readonly audio: SceneAudioDebugStatus | null
     }
     __bench?: BenchDebugReport
