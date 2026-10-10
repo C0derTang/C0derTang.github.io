@@ -13,6 +13,8 @@ test('plays every beat without console errors', async ({ page }, testInfo) => {
   await page.goto('/?freeze')
   await page.waitForFunction(() => window.__scene?.ready === true, null, { timeout: 60_000 })
   await expect(page.locator('#curtain')).toBeHidden()
+  // A frozen start holds the curtain for the deferred textures too, so every frame is complete.
+  expect(await page.evaluate(() => window.__scene?.settled)).toBe(true)
 
   const poseAt = async (f: number) => {
     await page.evaluate((frac) => {

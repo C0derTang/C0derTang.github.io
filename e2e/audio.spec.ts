@@ -258,15 +258,23 @@ for (const failure of ['fetch', 'decode'] as const) {
       }
     })
 
+    // Sound is fetched by the first enable, never behind the curtain.
     await openScene(page, true)
+    expect(intercepted).toBe(0)
+    const toggle = page.locator('[data-ui="sound-toggle"]')
+    await toggle.click()
+    await expect(page.locator('[data-ui="sound-status"]')).toHaveText(
+      'Sound couldn’t be changed. Try again.',
+    )
     expect(intercepted).toBeGreaterThan(0)
-    expect(await page.evaluate(() => window.__scene?.audio)).toBeNull()
+    await expect(toggle).toHaveAccessibleName('Enable sound')
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await expect(toggle).toBeEnabled()
+    expect(await audioStatus(page)).toMatchObject({ enabled: false, active: false, sourceCount: 0 })
     await expect(page.locator('html')).toHaveClass(/scene-ready/)
     await expect(page.locator('html')).not.toHaveClass(/no-scene/)
     await expect(page.locator('#gl')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Christopher Tang' })).toBeVisible()
-    await expect(page.locator('[data-ui="sound"]')).toBeHidden()
-    await expect(page.locator('[data-ui="sound-toggle"]')).toBeDisabled()
     expect(errors).toEqual([])
   })
 }
