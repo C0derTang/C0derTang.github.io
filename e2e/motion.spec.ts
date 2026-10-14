@@ -39,7 +39,7 @@ test('tab visibility does not start a loading or failed landscape', async ({ pag
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
     return Array.from(document.querySelectorAll<HTMLElement>('.slot'), (slot) => slot.inert)
   })
-  expect(fallbackInert).toEqual([false, false, false, false])
+  expect(fallbackInert).toEqual(Array.from({ length: 4 }, () => false))
 })
 
 test('seeking and resizing do not create extra animation loops', async ({ page }) => {
@@ -122,4 +122,10 @@ test('reduced motion holds complete stills and reaches the fish underwater', asy
   expect(await frameAt(0.98)).toEqual(underwater)
   await frameAt(0.28)
   expect(await frameAt(0.9)).toEqual(underwater)
+
+  // The turn holds a still at each wall (banners, front, trophies), not one for the whole beat.
+  expect((await frameAt(0.364)).pose.yaw).toBeCloseTo(90, 5)
+  expect((await frameAt(0.41)).pose.yaw).toBeCloseTo(180, 5)
+  expect((await frameAt(0.456)).pose.yaw).toBeCloseTo(270, 5)
+  expect((await frameAt(0.34)).pose.yaw).toBeCloseTo(90, 5)
 })

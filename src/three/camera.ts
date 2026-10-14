@@ -85,20 +85,62 @@ const fov = track([
   [0, 55],
   [T.exterior[1], 55],
   [T.enter[1], 64],
+  // A touch wider at the banner hold, so the 4.4 m of banners fits a portrait phone from 4.5 m.
+  [0.329, 64],
+  [0.357, 66],
+  [0.371, 66],
+  [0.401, 64],
   [T.doors[1], 64],
   [T.paddy[0] + 0.04, 58],
   [1, 58],
 ])
+/**
+ * The walk around the hearth during the turn, as offsets from the standing point beside it
+ * (-0.95, -3.2). They move the position and the look target together, so the yaw track alone
+ * sets the view direction and every hold faces its wall squarely:
+ * - banner hold (yaw 90): east of the hearth at (0.7, -3.4), square to the middle of the +x
+ *   wall with the kettle and its chain behind the camera; reached by passing behind the pit;
+ * - front hold (yaw 180): the same spot;
+ * - trophy hold (yaw 270): (-2.7, -4.9), about 2.4 m in front of the case on the -x wall,
+ *   reached behind the pit again (z leads x, so the path clears the pit's far lip at z -4.08);
+ * then straight back to the standing point, where the doors beat starts unchanged.
+ */
+const BANNER_HOLD = [0.357, 0.371] as const
+const FRONT_HOLD = [0.401, 0.419] as const
+const TROPHY_HOLD = [0.449, 0.463] as const
+const walkX = track([
+  [T.turn[0], 0],
+  [0.329, 0],
+  [BANNER_HOLD[0], 1.65],
+  [FRONT_HOLD[1], 1.65],
+  [TROPHY_HOLD[0], -1.75],
+  [TROPHY_HOLD[1], -1.75],
+  [T.turn[1], 0],
+  [1, 0],
+])
+const walkZ = track([
+  [T.turn[0], 0],
+  [0.329, 0],
+  [0.343, -1.3],
+  [BANNER_HOLD[0], -0.2],
+  [FRONT_HOLD[1], -0.2],
+  [0.434, -1.7],
+  [TROPHY_HOLD[1], -1.7],
+  [T.turn[1], 0],
+  [1, 0],
+])
+const inTurn = (t: number): boolean => t > T.turn[0] && t < T.turn[1]
+
 /** Long eased turns between exact holds, so wheel gestures cannot flick past a room face. */
 const faces = track([
   [T.turn[0], 0],
   [0.329, 0],
-  [0.357, 1],
-  [0.371, 1],
-  [0.401, 2],
-  [0.419, 2],
-  [0.449, 3],
-  [0.463, 3],
+  [BANNER_HOLD[0], 1],
+  [BANNER_HOLD[1], 1],
+  [FRONT_HOLD[0], 2],
+  [FRONT_HOLD[1], 2],
+  [TROPHY_HOLD[0], 3],
+  [TROPHY_HOLD[1], 3],
   [0.492, 4],
   [T.turn[1], 4],
 ])
@@ -106,12 +148,14 @@ const faces = track([
 export const turnFaces = (t: number): number => (t < T.turn[0] || t > T.turn[1] ? 0 : faces(t))
 
 export function cameraPose(t: number): Pose {
-  const x = px(t)
+  const ox = inTurn(t) ? walkX(t) : 0
+  const oz = inTurn(t) ? walkZ(t) : 0
+  const x = px(t) + ox
   const y = py(t)
-  const z = pz(t)
-  let lx = tx(t)
+  const z = pz(t) + oz
+  let lx = tx(t) + ox
   let ly = ty(t)
-  let lz = tz(t)
+  let lz = tz(t) + oz
   const yaw = turnFaces(t) * 90
   if (yaw > 0 && yaw < 360) {
     // Rotate the base look direction about +y: +90 faces +x (the right wall).

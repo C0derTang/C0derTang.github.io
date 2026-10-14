@@ -59,6 +59,7 @@
         </div>
         <div class="scene-tools">
           <span class="scene-caption">A walk through the rain</span>
+          <button class="resume-open" type="button" data-ui="resume-open">Résumé</button>
           <div class="sound-control" data-ui="sound" data-enabled="false" hidden>
             <button
               class="sound-toggle"
@@ -167,6 +168,38 @@
       </div>
     </main>
 
+    <!-- The opened banner or trophy. Empty here: its text comes from a script chunk on open. -->
+    <div id="focus">
+      <ul class="focus-list" data-ui="focus-list" aria-label="Things to open" hidden></ul>
+      <p class="focus-hint" data-ui="focus-hint" aria-hidden="true"></p>
+      <section
+        class="focus-panel"
+        data-ui="focus-panel"
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="focus-title"
+        tabindex="-1"
+        data-nosnippet
+        hidden
+      >
+        <div class="focus-card" data-ui="focus-body"></div>
+        <button class="focus-close" type="button" data-ui="focus-close" aria-label="Close">
+          <span aria-hidden="true">×</span>
+        </button>
+      </section>
+    </div>
+
+    <!-- Filled from a separate chunk when a visitor opens it; deliberately empty in the page. -->
+    <dialog id="resume" class="resume" aria-label="Résumé" data-lenis-prevent>
+      <div class="resume-sheet" data-nosnippet>
+        <div class="resume-tools">
+          <button type="button" data-ui="resume-print" hidden>Print / save as PDF</button>
+          <button type="button" data-ui="resume-close" autofocus>Close</button>
+        </div>
+        <div class="resume-body" data-ui="resume-body"></div>
+      </div>
+    </dialog>
+
     <!-- Scroll spacer. Its height defines the length of the story. -->
     <div class="scroll-track" aria-hidden="true">
       <section class="beat" data-beat="exterior"></section>
@@ -181,7 +214,7 @@
     <noscript>
       <p class="noscript">
         This page is an animated scene that needs JavaScript. The text above is the whole story;
-        links still work.
+        links still work. The résumé needs JavaScript as well.
       </p>
     </noscript>
 

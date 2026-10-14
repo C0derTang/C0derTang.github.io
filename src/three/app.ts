@@ -10,8 +10,10 @@ import {
   WebGLRenderer,
 } from 'three'
 import { hdriUrl } from '../config/assets'
+import { PROJECTS } from '../config/projects'
 import type { Quality } from '../config/quality'
 import { createAtmosphere } from './atmosphere'
+import { createFocus, type Focus } from './focus'
 import { createLoader } from './loader'
 import { createMaterials } from './materials'
 import { createPost } from './post'
@@ -21,7 +23,9 @@ import { createHouse, createYard } from './world/house'
 import { createInterior } from './world/interior'
 import { createPaddy } from './world/paddy'
 import { createRain } from './world/rain'
+import { createScrolls } from './world/scrolls'
 import { createTerrain } from './world/terrain'
+import { createTrophies } from './world/trophies'
 import { createUnderwater } from './world/underwater'
 import type { WorldPart } from './world/types'
 
@@ -42,6 +46,8 @@ export interface App {
   /** resolves once the deferred assets are in as well */
   readonly settled: Promise<void>
   readonly camera: PerspectiveCamera
+  /** the opened view: picking, the open banner or trophy (`focus.ts`) */
+  readonly focus: Focus
 }
 
 /**
@@ -85,10 +91,26 @@ export function createApp(canvas: HTMLCanvasElement, quality: Quality, eager = f
   const materials = createMaterials(quality, loader)
   const atmosphere = createAtmosphere(scene, quality)
 
+  // The banner images wait for the curtain's own assets unless the start is eager.
+  const scrolls = createScrolls(materials, quality, eager ? undefined : loader.ready)
+  // Upload the painted atlas when it is ready rather than on the frame that first shows a scroll.
+  void scrolls.painted.then((texture) => renderer.initTexture(texture))
+
+  const trophies = createTrophies(materials, quality)
+  const focus = createFocus(camera, [scrolls, trophies], {
+    paper(id) {
+      const project = PROJECTS.find((p) => p.id === id)
+      return project ? scrolls.paper(project.id) : null
+    },
+    reducedMotion: quality.reducedMotion,
+  })
+
   const parts: WorldPart[] = [
     createYard(materials, quality),
     createHouse(materials, quality),
     createInterior(materials, quality),
+    scrolls,
+    trophies,
     createTerrain(materials, quality),
     createPaddy(materials, quality),
     createUnderwater(materials, quality),
@@ -117,7 +139,9 @@ export function createApp(canvas: HTMLCanvasElement, quality: Quality, eager = f
     .catch(() => {
       /* no HDRI: hemisphere light only */
     })
-    .then(() => (eager ? loader.settled : loader.ready))
+    .then((): Promise<unknown> =>
+      eager ? Promise.all([loader.settled, scrolls.painted]) : loader.ready,
+    )
     .then(async () => {
       performance.mark('scene:loaded')
       // Warm every shader behind the curtain: compileAsync only sees visible objects, so make
@@ -139,13 +163,13 @@ export function createApp(canvas: HTMLCanvasElement, quality: Quality, eager = f
     })
 
   const target = new Vector3()
-  const update = (state: SceneState): void => {
+  const update = (scroll: SceneState): void => {
     renderer.info.reset()
-    const p = state.pose
+    const p = scroll.pose
     camera.position.set(p.x, p.y, p.z)
     // Underwater float: a slow time-based bob well below the surface (never at the crossing).
-    if (state.underwater && !state.reduced)
-      camera.position.y += 0.04 * Math.sin(state.time / 1400) * Math.min(1, state.depth / 0.6)
+    if (scroll.underwater && !scroll.reduced)
+      camera.position.y += 0.04 * Math.sin(scroll.time / 1400) * Math.min(1, scroll.depth / 0.6)
     target.set(p.tx, p.ty, p.tz)
     camera.lookAt(target)
     const fov = fitFov(p.fov, camera.aspect)
@@ -153,6 +177,8 @@ export function createApp(canvas: HTMLCanvasElement, quality: Quality, eager = f
       camera.fov = fov
       camera.updateProjectionMatrix()
     }
+    // The opened view sits on top of the scroll frame; with nothing open this is `scroll` itself.
+    const state = focus.apply(scroll)
     for (const part of parts) part.update?.(state)
     materials.update(state.reduced ? 0 : state.time)
     atmosphere.apply(state, camera)
@@ -181,7 +207,8 @@ export function createApp(canvas: HTMLCanvasElement, quality: Quality, eager = f
       }
     },
     ready,
-    settled: ready.then(() => loader.settled),
+    settled: ready.then(() => Promise.all([loader.settled, scrolls.painted])).then(() => undefined),
     camera,
+    focus,
   }
 }
