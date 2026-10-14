@@ -56,6 +56,12 @@ declare global {
       readonly ready: boolean
       readonly settled: boolean
       readonly audio: SceneAudioDebugStatus | null
+      readonly app: { camera: { position: { x: number; y: number; z: number } } }
+      readonly focus: {
+        open(id: string): void
+        close(): void
+        readonly state: { id: string | null; k: number; kind: 'banner' | 'trophy' | null }
+      }
     }
     __bench?: BenchDebugReport
   }

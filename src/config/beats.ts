@@ -78,7 +78,7 @@ export const storyProgressRate = (t: number): number => SCROLL_WEIGHT / SCROLL_W
 /** Overlay slot windows: [fadeInStart, fadeInEnd, fadeOutStart, fadeOutEnd] in t. */
 export const SLOTS = [
   { id: 'exterior', window: [-0.02, 0, 0.08, 0.14] },
-  { id: 'interior', window: [0.35, 0.375, 0.44, 0.465] },
+  { id: 'interior', window: [0.27, 0.29, 0.325, 0.34] },
   { id: 'paddy', window: [0.63, 0.66, 0.73, 0.76] },
   { id: 'underwater', window: [0.89, 0.93, 1.5, 2] },
 ] as const satisfies readonly { id: string; window: readonly [number, number, number, number] }[]

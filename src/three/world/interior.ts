@@ -595,8 +595,10 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   group.add(doma)
 
   // kamado stove: a stepped lathe silhouette (two stacked forms) with two pot rings + iron pots
+  // It stands toward the back of the doma, left of the banners on this wall (`scrolls.ts`) as
+  // the banner hold sees them, and clear of the doma post.
   const KX = 4.4
-  const KZ = -3.8
+  const KZ = -5.2
   const kamadoPts = [
     new Vector2(0.02, 0),
     new Vector2(0.52, 0),
@@ -672,22 +674,23 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
     new Vector2(0, 0.055),
   ]
   const jarGeo = new LatheGeometry(jarPts, 28)
-  jarGeo.applyMatrix4(xform(3.95, DOMA_Y, -3.3))
+  jarGeo.applyMatrix4(xform(3.95, DOMA_Y, -4.5))
   const clayParts: BufferGeometry[] = [jarGeo]
 
-  // shelf with jars (+x wall, further back) and a pot rack (nearer the front)
-  b.box('trim', mats.wood, 0.28, 0.04, 1.1, 5.12, 1.7, -5.6)
+  // The banners take the middle of this wall, so the jar shelf sits in the back corner and the
+  // pot rack by the front wall.
+  b.box('trim', mats.wood, 0.28, 0.04, 0.7, 5.12, 1.7, -6.3)
   for (let i = 0; i < 4; i++) {
     const small = new LatheGeometry(
       jarPts.map((p) => p.clone().multiplyScalar(0.4 + i * 0.05)),
       20,
     )
-    small.applyMatrix4(xform(5.0 + (i % 2) * 0.18, 1.72, -5.9 + i * 0.24))
+    small.applyMatrix4(xform(5.0 + (i % 2) * 0.18, 1.72, -6.55 + i * 0.17))
     clayParts.push(small)
   }
-  b.box('trim', mats.woodDark, 0.06, 0.06, 1.0, 5.15, 2.15, -2.0) // pot rack bar
+  b.box('trim', mats.woodDark, 0.06, 0.06, 0.9, 5.15, 2.15, -0.72) // pot rack bar
   for (let i = 0; i < 5; i++) {
-    const zi = -1.55 - i * 0.22
+    const zi = -0.36 - i * 0.18
     const drop = 0.22 + (i % 3) * 0.08
     b.box('hook', mats.woodDark, 0.015, drop, 0.015, 5.15, 2.15 - drop / 2, zi, {
       cast: false,
@@ -697,17 +700,6 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
     pan.applyMatrix4(xform(5.15, 2.15 - drop, zi))
     metalParts.push(pan)
   }
-  // hooks with a couple of small tools near the rack
-  b.box('hook', mats.woodDark, 0.1, 0.02, 0.02, 5.15, 1.55, -1.2, {
-    rz: Math.PI / 6,
-    cast: false,
-    receive: false,
-  })
-  b.box('hook', mats.woodDark, 0.1, 0.02, 0.02, 5.15, 1.4, -1.35, {
-    rz: -Math.PI / 6,
-    cast: false,
-    receive: false,
-  })
 
   // bucket + bamboo basket on the doma floor
   const bucketGeo = new LatheGeometry(
@@ -737,15 +729,17 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
 
   // small window on the kitchen wall. This wall faces -x (its plane is y/z, thin along x), so
   // it is built directly with box() calls rather than the z-facing `latticePanel` helper.
-  const kw0 = -4.6 - 0.35
-  const kw1 = -4.6 + 0.35
-  b.box('trim', mats.woodDark, 0.05, 0.6, 0.03, 5.2, 1.7, -4.6) // vertical mullion
-  b.box('trim', mats.woodDark, 0.05, 0.05, 0.7, 5.2, 1.4, -4.6) // sill
-  b.box('trim', mats.woodDark, 0.05, 0.05, 0.7, 5.2, 2.0, -4.6) // head
+  // It is over the stove, left of the banners.
+  const KWZ = -5.45
+  const kw0 = KWZ - 0.35
+  const kw1 = KWZ + 0.35
+  b.box('trim', mats.woodDark, 0.05, 0.6, 0.03, 5.2, 1.7, KWZ) // vertical mullion
+  b.box('trim', mats.woodDark, 0.05, 0.05, 0.7, 5.2, 1.4, KWZ) // sill
+  b.box('trim', mats.woodDark, 0.05, 0.05, 0.7, 5.2, 2.0, KWZ) // head
   b.box('trim', mats.woodDark, 0.05, 0.6, 0.03, 5.2, 1.7, kw0) // left stile
   b.box('trim', mats.woodDark, 0.05, 0.6, 0.03, 5.2, 1.7, kw1) // right stile
   const kwGeo = new BoxGeometry(0.008, 0.5, 0.6)
-  kwGeo.applyMatrix4(xform(5.18, 1.7, -4.6))
+  kwGeo.applyMatrix4(xform(5.18, 1.7, KWZ))
   glassParts.push(kwGeo)
 
   // ------------------------------------------------------------- +z wall: front, from inside ----
@@ -765,10 +759,10 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   tanParts.push(hatGeo)
   // umbrella leaning against the wall
   const shaftGeo = new CylinderGeometry(0.015, 0.015, 1.1, 6)
-  shaftGeo.applyMatrix4(xform(-1.85, 0.96, -0.22, 0, 0, 0.16))
+  shaftGeo.applyMatrix4(xform(1.95, 0.96, -0.22, 0, 0, 0.16))
   b.push('trim', mats.wood, shaftGeo, false, false)
   const canopyGeo = new ConeGeometry(0.13, 0.85, 8)
-  canopyGeo.applyMatrix4(xform(-1.85, 1.5, -0.26, 0, 0, 0.16))
+  canopyGeo.applyMatrix4(xform(1.95, 1.5, -0.26, 0, 0, 0.16))
   clothParts.push(canopyGeo)
   // a small step at the tatami/doma boundary near the front
   b.box('trim', mats.wood, 0.5, 0.18, 0.4, 3.3, FLOOR_Y - 0.09, -0.45, { cast: false })
@@ -794,18 +788,19 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   wGlass.applyMatrix4(xform(-5.18, 1.8, (wwZ0 + wwZ1) / 2))
   glassParts.push(wGlass)
 
-  b.box('trim', mats.wood, 0.28, 0.04, 1.3, -5.13, 1.6, -4.5)
+  b.box('trim', mats.wood, 0.28, 0.04, 1.3, -5.13, 1.6, -1.0)
   for (let i = 0; i < 3; i++) {
     const small = new LatheGeometry(
       jarPts.map((p) => p.clone().multiplyScalar(0.35 + i * 0.06)),
       20,
     )
-    small.applyMatrix4(xform(-5.0 - (i % 2) * 0.15, 1.62, -4.9 + i * 0.35))
+    small.applyMatrix4(xform(-5.0 - (i % 2) * 0.15, 1.62, -1.4 + i * 0.35))
     clayParts.push(small)
   }
-  // A compact tea chest beneath the existing shelf, with inset drawer faces and ring pulls.
+  // A compact tea chest under the window (the trophy case has the wall beyond the post), with
+  // inset drawer faces and ring pulls.
   const chestX = -4.68
-  const chestZ = -4.52
+  const chestZ = -2.5
   const chestTop = FLOOR_Y + 0.76
   rounded(0.62, 0.61, 1.5, chestX, FLOOR_Y + 0.405, chestZ, true)
   rounded(0.73, 0.07, 1.62, chestX, chestTop - 0.035, chestZ)
@@ -885,20 +880,20 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   // farm tools leaning against the wall: handles (wood) + heads (metal)
   const toolX = -5.12
   for (const [z, tilt] of [
-    [-5.5, 0.05],
-    [-5.75, -0.04],
-    [-6.0, 0.08],
+    [-6.08, 0.05],
+    [-6.3, -0.04],
+    [-6.52, 0.08],
   ] as const) {
     const handle = new CylinderGeometry(0.014, 0.014, 1.3, 6)
     handle.applyMatrix4(xform(toolX, 0.41 + 0.65, z, 0, 0, tilt))
     b.push('trim', mats.wood, handle, false, false)
   }
   const rakeHead = new BoxGeometry(0.26, 0.05, 0.02)
-  rakeHead.applyMatrix4(xform(toolX + 0.03, 1.05, -5.5, 0, 0, 0.05))
+  rakeHead.applyMatrix4(xform(toolX + 0.03, 1.05, -6.08, 0, 0, 0.05))
   const hoeHead = new BoxGeometry(0.2, 0.14, 0.015)
-  hoeHead.applyMatrix4(xform(toolX + 0.05, 1.02, -5.75, 0, Math.PI / 2, -0.04))
+  hoeHead.applyMatrix4(xform(toolX + 0.05, 1.02, -6.3, 0, Math.PI / 2, -0.04))
   const sickle = new TorusGeometry(0.12, 0.012, 5, 10, Math.PI * 0.7)
-  sickle.applyMatrix4(xform(toolX + 0.05, 1.0, -6.0, 0, 0, Math.PI * 0.6 + 0.08))
+  sickle.applyMatrix4(xform(toolX + 0.05, 1.0, -6.52, 0, 0, Math.PI * 0.6 + 0.08))
   metalParts.push(rakeHead, hoeHead, sickle)
   // rolled futon along the wall
   const futonGeo = new CylinderGeometry(0.22, 0.22, 1.5, 12)
@@ -909,14 +904,6 @@ export function createInterior(mats: Materials, quality: Quality): WorldPart {
   hangBasket.applyMatrix4(xform(-5.05, 2.0, -3.5))
   tanParts.push(hangBasket)
   b.box('hook', mats.woodDark, 0.02, 0.22, 0.02, -5.1, 2.15, -3.5, { cast: false, receive: false })
-  // a hanging scroll (kakejiku)
-  const scrollGeo = new BoxGeometry(0.008, 0.85, 0.34)
-  scrollGeo.applyMatrix4(xform(-5.19, 2.05, -1.9))
-  const scrollMat = new MeshStandardMaterial({ color: new Color('#e6dabd'), roughness: 0.85 })
-  const scroll = new Mesh(scrollGeo, scrollMat)
-  scroll.castShadow = false
-  scroll.receiveShadow = false
-  group.add(scroll)
 
   // ---------------------------------------------------------------------- posts + rail ----
   const POST = 0.18

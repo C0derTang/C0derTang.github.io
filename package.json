@@ -19,7 +19,9 @@
     "format:check": "prettier --check .",
     "test:e2e": "playwright test --project=desktop --project=mobile",
     "bench": "BENCH=1 playwright test --project=bench",
+    "check:dist": "node scripts/check-dist.mjs",
     "assets": "node scripts/build-assets.mjs",
+    "assets:art": "node scripts/build-art.mjs",
     "clean": "rm -rf dist node_modules/.tmp test-results playwright-report"
   },
   "dependencies": {

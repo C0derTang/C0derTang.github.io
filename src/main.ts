@@ -1,11 +1,15 @@
 import 'lenis/dist/lenis.css'
 import { curtainTextureUrls, hdriUrl } from './config/assets'
 import { detectQuality } from './config/quality'
+import { createResume } from './ui/resume'
 
 // The entry stays tiny: choose the tier, request what the curtain waits for, then fetch the
 // scene chunk (three.js and the world), so assets download while that chunk loads and parses.
 const params = new URLSearchParams(location.search)
 const quality = detectQuality(params)
+
+// Before the scene chunk: the résumé must open even if the landscape never does.
+createResume()
 
 for (const href of [hdriUrl(quality.tier), ...curtainTextureUrls(quality.tier)]) {
   const link = document.createElement('link')

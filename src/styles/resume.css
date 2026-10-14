@@ -1,0 +1,196 @@
+.resume-open {
+  min-height: 44px;
+  padding: 0.4rem 1rem;
+  border: 1px solid rgb(244 241 234 / 22%);
+  border-radius: 999px;
+  background: rgb(15 32 30 / 58%);
+  color: var(--ui-text);
+  font: 500 0.72rem var(--font-body);
+  letter-spacing: 0.035em;
+  cursor: pointer;
+}
+.resume-open:hover {
+  border-color: var(--accent);
+  background: rgb(15 32 30 / 82%);
+}
+html:not(.js) .resume-open {
+  display: none;
+}
+html.no-scene .resume-open {
+  border-color: rgb(28 42 36 / 30%);
+  background: none;
+  color: var(--ink);
+}
+
+.resume {
+  width: min(46rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  border: 0;
+  border-top: 2px solid #a86a4b;
+  background: var(--paper);
+  color: var(--ink);
+  overscroll-behavior: contain;
+  box-shadow: 0 24px 80px rgb(8 14 13 / 45%);
+}
+.resume::backdrop {
+  background: rgb(13 24 23 / 66%);
+  backdrop-filter: blur(3px);
+}
+.resume-sheet {
+  padding: clamp(1.25rem, 4vw, 2.75rem);
+}
+.resume-tools {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin: calc(-1 * clamp(1.25rem, 4vw, 2.75rem)) calc(-1 * clamp(1.25rem, 4vw, 2.75rem)) 1rem;
+  padding: 0.6rem clamp(1.25rem, 4vw, 2.75rem);
+  background: var(--paper);
+  box-shadow: 0 8px 10px -8px rgb(28 42 36 / 22%);
+}
+.resume-tools [hidden] {
+  display: none;
+}
+.resume-tools button,
+.resume-goto {
+  min-height: 44px;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid rgb(28 42 36 / 28%);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  font: 500 0.72rem var(--font-body);
+  letter-spacing: 0.035em;
+  cursor: pointer;
+}
+.resume-tools button:hover,
+.resume-goto:hover {
+  border-color: #875134;
+  color: #875134;
+}
+.resume :is(a, button):focus-visible {
+  outline: 2px solid #875134;
+  outline-offset: 3px;
+}
+.resume p,
+.resume li {
+  max-width: none;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #3d4640;
+}
+.resume a {
+  color: #875134;
+}
+.resume a:hover {
+  color: var(--ink);
+}
+.resume-head h2 {
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  margin-bottom: 0.25em;
+}
+.resume-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
+  margin-top: 0.6rem !important;
+}
+.resume section {
+  margin-top: 1.9rem;
+}
+.resume h3 {
+  margin: 0 0 0.9rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid rgb(28 42 36 / 20%);
+  font: 500 0.7rem var(--font-body);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #655e51;
+}
+.resume-entry + .resume-entry {
+  margin-top: 1.15rem;
+}
+.resume-entry-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+.resume h4 {
+  margin: 0;
+  font: 500 1.08rem var(--font-display);
+  letter-spacing: -0.01em;
+}
+.resume-when {
+  flex: none;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: #655e51;
+}
+.resume-role {
+  font-style: italic;
+}
+.resume ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+.resume-goto {
+  margin-top: 0.6rem;
+}
+html.no-scene .resume-goto {
+  display: none;
+}
+.resume-skills {
+  margin-top: 0.8rem !important;
+}
+@media (max-width: 640px) {
+  .resume {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+  }
+  .resume-entry-head {
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+}
+
+/* Printing with the sheet open gives the résumé alone, as a clean page. */
+@media print {
+  html:has(.resume[open]),
+  html:has(.resume[open]) body {
+    background: #fff;
+    overflow: visible !important;
+  }
+  html:has(.resume[open]) :is(#gl, #curtain, #overlay, .scroll-track, .skip-link) {
+    display: none !important;
+  }
+  .resume[open] {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    max-width: none;
+    height: auto;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    background: #fff;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .resume::backdrop,
+  .resume-tools,
+  .resume-goto {
+    display: none;
+  }
+  .resume-sheet {
+    padding: 0;
+  }
+}

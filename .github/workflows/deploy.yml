@@ -35,6 +35,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm format:check
       - run: pnpm build
+      - run: pnpm check:dist
 
       - name: Publish dist to gh-pages
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

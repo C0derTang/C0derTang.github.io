@@ -1,13 +1,16 @@
 import Lenis from 'lenis'
 import { engine } from 'animejs'
 import { createSoundscape, type SoundStatus } from './audio/soundscape'
-import { SCROLL_LEN_VH, SCROLL_SEGMENTS, storyProgressRate } from './config/beats'
+import { SCROLL_LEN_VH, SCROLL_SEGMENTS, storyProgressRate, storyToScroll } from './config/beats'
+import { deepLinkProject, deepLinkT } from './config/projects'
 import type { Quality } from './config/quality'
 import { createDirector } from './scroll/director'
 import { createApp, type App } from './three/app'
+import type { FocusState } from './three/focus'
 import { computeState, type SceneState } from './three/state'
 import { createBench } from './ui/bench'
 import { createHud } from './ui/debug'
+import { createFocusUi } from './ui/focus'
 import { createOverlay } from './ui/overlay'
 import { createSoundControl, type SoundControl } from './ui/sound'
 import { attrWrite, mustGet, styleWrite } from './util/dom'
@@ -23,6 +26,8 @@ declare global {
       readonly settled: boolean
       readonly audio: SoundStatus | null
       app: App
+      /** the opened banner or trophy (tests) */
+      focus: { open(id: string): void; close(): void; readonly state: FocusState }
     }
   }
 }
@@ -49,7 +54,10 @@ export async function boot(params: URLSearchParams, quality: Quality): Promise<v
   const root = mustGet('#overlay')
 
   // A frozen or seeked start must be complete at any t, so it also waits for the deferred assets.
-  const eager = params.has('freeze') || params.has('t') || params.has('bench')
+  // A fragment that names a project or a beat (#cph2h, #paddy) is such a start.
+  const hashStart = deepLinkT(location.hash)
+  const eager =
+    params.has('freeze') || params.has('t') || params.has('bench') || (hashStart ?? 0) > 0
   const app = createApp(canvas, quality, eager)
   const curtainBar = mustGet('.curtain-bar', curtain)
   const curtainFill = mustGet('.curtain-bar i', curtain)
@@ -78,6 +86,42 @@ export async function boot(params: URLSearchParams, quality: Quality): Promise<v
     anchors: true,
   })
   const director = createDirector(lenis)
+
+  // The walk holds still under the résumé sheet (ui/resume.ts, modal) and under an opened
+  // banner or trophy (ui/focus.ts); it moves again when neither holds it.
+  const locks = new Set<'resume' | 'focus'>()
+  const lock = (who: 'resume' | 'focus', on: boolean): void => {
+    if (on) locks.add(who)
+    else locks.delete(who)
+    if (locks.size > 0) lenis.stop()
+    else lenis.start()
+  }
+  if (document.querySelector<HTMLDialogElement>('#resume')?.open) lock('resume', true)
+  window.addEventListener('resume:toggle', (event) => {
+    lock('resume', event.detail.open)
+  })
+  const focusUi = createFocusUi(app.focus, {
+    lock: (on) => {
+      lock('focus', on)
+    },
+    settled: app.settled,
+    // A few px of slack: the browser rounds the scroll position Lenis then adopts as its target.
+    headedFor: (t) => Math.abs(lenis.targetScroll - storyToScroll(t) * lenis.limit) <= 4,
+  })
+  window.addEventListener('hashchange', () => {
+    // The sheet owns the fragment while it is open (#resume); its go-to button closes it first.
+    if (document.querySelector<HTMLDialogElement>('#resume')?.open) return
+    const t = deepLinkT(location.hash)
+    if (t === undefined) return
+    focusUi.close()
+    lenis.scrollTo(storyToScroll(t) * lenis.limit, {
+      immediate: quality.reducedMotion,
+      force: true,
+    })
+    // A project's fragment also opens its banner once the scroll is in front of it.
+    const project = deepLinkProject(location.hash)
+    if (project) focusUi.arrive(project, t)
+  })
   const bench = params.has('bench') ? createBench(lenis, app) : null
 
   let lastState: SceneState | undefined
@@ -103,6 +147,7 @@ export async function boot(params: URLSearchParams, quality: Quality): Promise<v
     app.update(state)
     sound?.update(state)
     overlay.update(state)
+    focusUi.update(state)
     hud?.update(state)
     bench?.frame(t0, performance.now() - t0)
   })
@@ -126,6 +171,17 @@ export async function boot(params: URLSearchParams, quality: Quality): Promise<v
       return sound?.status ?? null
     },
     app,
+    focus: {
+      open: (id) => {
+        focusUi.open(id)
+      },
+      close: () => {
+        focusUi.close()
+      },
+      get state() {
+        return app.focus.state
+      },
+    },
   }
 
   try {
@@ -154,10 +210,13 @@ export async function boot(params: URLSearchParams, quality: Quality): Promise<v
     director.freeze(true)
     sound?.setPaused(true)
   }
-  const startT = Number(params.get('t') ?? 0)
+  const startT = Number(params.get('t') ?? deepLinkT(location.hash) ?? 0)
   director.seek(Number.isFinite(startT) ? Math.min(1, Math.max(0, startT)) : 0)
   director.start()
   ready = true
+  // A project's fragment starts in front of its banner (unless ?t= chose the place) and opens it.
+  const startProject = params.has('t') ? undefined : deepLinkProject(location.hash)
+  if (startProject) focusUi.arrive(startProject, startT)
   curtain.classList.add('is-ready')
   curtain.setAttribute('aria-hidden', 'true')
   if (quality.reducedMotion) curtain.hidden = true

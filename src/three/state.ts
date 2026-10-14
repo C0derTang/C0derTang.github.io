@@ -46,6 +46,14 @@ const STILL_T = {
   dive: 0.82,
   underwater: 0.93,
 } as const satisfies Record<BeatId, number>
+/** The middles of the turn's three wall holds (`faces` in camera.ts): banners, front, trophies. */
+const TURN_STILLS = [0.364, 0.41, 0.456] as const
+/** Reduced motion still faces each wall in turn: the hold nearest to t. */
+const turnStill = (t: number): number =>
+  TURN_STILLS.reduce<number>(
+    (best, hold) => (Math.abs(hold - t) < Math.abs(best - t) ? hold : best),
+    TURN_STILLS[0],
+  )
 const num = (keys: readonly (readonly [number, number])[]) => monotoneCubic(keys)
 const col =
   (keys: readonly (readonly [number, string])[]) =>
@@ -185,7 +193,7 @@ export function computeState(
   const u = {} as Record<BeatId, number>
   for (const id of BEAT_IDS) u[id] = local(t, BEATS[id])
 
-  const poseT = quality.reducedMotion ? STILL_T[beat] : t
+  const poseT = quality.reducedMotion ? (beat === 'turn' ? turnStill(t) : STILL_T[beat]) : t
   const pose = cameraPose(poseT)
   const doors = quality.reducedMotion
     ? poseT >= BEATS.doors[0] + 0.02

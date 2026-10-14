@@ -3,3 +3,4 @@ pnpm-lock.yaml
 test-results
 playwright-report
 .playwright-mcp
+.superpowers

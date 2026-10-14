@@ -129,11 +129,25 @@ html.no-scene .sound-control {
 }
 @media (max-width: 640px) {
   .scene-header {
-    flex-wrap: wrap;
-    gap: 0.6rem;
+    gap: 0.5rem;
+  }
+  .scene-header .mark {
+    flex: 0 1 auto;
+    min-width: 0;
+    gap: 0.5rem;
+    font-size: 0.85rem;
   }
   .scene-tools {
-    margin-left: auto;
+    flex: none;
+    gap: 0.4rem;
+  }
+  .scene-tools .resume-open {
+    padding-inline: 0.75rem;
+  }
+  .sound-toggle {
+    min-width: 0;
+    padding-inline: 0.7rem;
+    gap: 0.35rem;
   }
   .sound-volume {
     position: absolute;

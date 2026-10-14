@@ -193,3 +193,12 @@ site. The rain layers use only the two recordings credited above.
 
 No sets failed to download; every requested map (color/normal/rough/ao) was available for
 every texture set, so no substitutions were needed.
+
+## Owner-supplied art
+
+These are not CC0 sources; they are the site owner's own work, used with the owner's permission.
+The raster sources are kept in `assets-src/art/` (not served).
+
+| Asset              | Source                                                                        | Change applied                                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Banner artwork 1–3 | Supplied by the site owner (their own logo, extension artwork and photograph) | Converted to ink line art by `scripts/build-art.mjs` (`pnpm assets:art`); the logo is path data in `src/config/art.ts` |
