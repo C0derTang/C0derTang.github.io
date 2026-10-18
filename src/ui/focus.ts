@@ -264,9 +264,17 @@ export function createFocusUi(focus: Focus, opts: FocusUiOptions): FocusUi {
       const project = text.projectContent(id)
       if (!project) return false
       title.textContent = project.name
+      const points = el('ul', 'focus-points')
+      points.append(...project.points.map((point) => el('li', '', point)))
       const facts = el('ul', 'focus-facts')
       facts.append(...project.facts.map((fact) => el('li', '', fact)))
-      body.replaceChildren(title, el('p', 'focus-line', project.line), facts)
+      // Each part of the eyebrow stays whole, so a narrow card never strands half a date range.
+      const kicker = el('p', 'focus-kicker')
+      project.kicker.split(' · ').forEach((part, i) => {
+        if (i > 0) kicker.append(' · ')
+        kicker.append(el('span', '', part))
+      })
+      body.replaceChildren(kicker, title, el('p', 'focus-line', project.line), points, facts)
       if (project.link) {
         const link = el('a', 'focus-link', project.link.label)
         link.href = project.link.href

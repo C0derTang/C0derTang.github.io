@@ -128,6 +128,44 @@ html[data-focus-layout='beside'] .scene-header {
 .focus-line {
   max-width: 44ch;
 }
+/* The eyebrow: what kind of project, and when. */
+.focus-kicker {
+  max-width: none;
+  margin: 0 0 0.85em;
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.focus-kicker span {
+  white-space: nowrap;
+}
+/* What it did, as a list: a short rule for a bullet. */
+.focus-points {
+  max-width: 46ch;
+  margin: 0 0 1.1em;
+  padding: 0;
+  list-style: none;
+}
+.focus-points li {
+  position: relative;
+  padding-left: 1.15em;
+  text-wrap: pretty;
+}
+.focus-points li + li {
+  margin-top: 0.4em;
+}
+.focus-points li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.78em;
+  width: 0.5em;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.6;
+}
 .focus-facts {
   display: flex;
   flex-wrap: wrap;
@@ -212,6 +250,15 @@ html[data-focus-layout='beside'] .scene-header {
   font-size: clamp(0.86rem, min(4cqw, 3.4cqh), 1.08rem);
   line-height: 1.65;
 }
+[data-layout='over'] .focus-kicker {
+  color: #8a3323;
+  font-size: clamp(0.58rem, min(2.6cqw, 2.3cqh), 0.7rem);
+}
+[data-layout='over'] .focus-points {
+  color: #2a2d2e;
+  font-size: clamp(0.8rem, min(3.7cqw, 3.1cqh), 1rem);
+  line-height: 1.5;
+}
 [data-layout='over'] .focus-facts {
   color: #3b4448;
   font-size: clamp(0.6rem, min(2.7cqw, 2.4cqh), 0.74rem);
@@ -276,6 +323,14 @@ html[data-focus-layout='beside'] .scene-header {
   font-size: clamp(0.95rem, 1.25vw, 1.1rem);
   line-height: 1.65;
 }
+[data-layout='beside'] .focus-kicker {
+  color: var(--accent);
+}
+[data-layout='beside'] .focus-points {
+  color: var(--ui-text-muted);
+  font-size: clamp(0.88rem, 1.1vw, 1rem);
+  line-height: 1.55;
+}
 [data-layout='beside'] .focus-facts {
   margin-top: 1.4em;
   color: var(--accent);
@@ -283,6 +338,22 @@ html[data-focus-layout='beside'] .scene-header {
 }
 [data-layout='beside'] .focus-link:hover {
   color: var(--accent);
+}
+/* A short landscape window (a small laptop): tighter leading, so the longest card still clears
+   the header without scrolling. */
+@media (max-height: 760px) {
+  [data-layout='beside'] .focus-card {
+    padding-block: 1.25rem;
+  }
+  [data-layout='beside'] .focus-line {
+    line-height: 1.5;
+  }
+  [data-layout='beside'] .focus-points {
+    line-height: 1.45;
+  }
+  [data-layout='beside'] .focus-facts {
+    margin-top: 1.1em;
+  }
 }
 
 /* A trophy: the card beside it, a bottom sheet where the screen is taller than wide (the trophy

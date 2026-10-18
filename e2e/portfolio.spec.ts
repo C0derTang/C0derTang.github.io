@@ -149,9 +149,27 @@ test('unknown fragments are ignored and ?t= wins over a fragment', async ({ page
 const BANNER_T = 0.364
 const TROPHY_T = 0.456
 const BANNERS = [
-  { id: 'cph2h', heading: 'CPH2H', href: /^https:\/\/cph2h\.com\/?$/ },
-  { id: 'waifu-focus', heading: 'Waifu Focus', href: /^https:\/\/chromewebstore\.google\.com\// },
-  { id: 'robotics', heading: 'Robotics', href: null },
+  {
+    id: 'cph2h',
+    heading: 'CPH2H',
+    kicker: /^Head-to-head coding platform · 2026$/,
+    points: 3,
+    href: /^https:\/\/cph2h\.com\/?$/,
+  },
+  {
+    id: 'waifu-focus',
+    heading: 'Waifu Focus',
+    kicker: /^Productivity Chrome extension · 2024 – 2025$/,
+    points: 3,
+    href: /^https:\/\/chromewebstore\.google\.com\//,
+  },
+  {
+    id: 'robotics',
+    heading: 'Robotics',
+    kicker: /^VEX Team 11475B · Bakersfield Robotics · 2023 – 2026$/,
+    points: 4,
+    href: null,
+  },
 ]
 const TROPHIES = [
   { id: 'vex', title: 'VEX Robotics' },
@@ -226,7 +244,7 @@ test('no project or trophy text is in the served page or the DOM before an open'
   }
 })
 
-test('each banner opens, shows its text and link, and closes back to the scroll pose', async ({
+test('each banner opens, shows its text, points and link, and closes back to the scroll pose', async ({
   page,
 }) => {
   await open(page, `/?freeze&t=${BANNER_T}`)
@@ -237,6 +255,10 @@ test('each banner opens, shows its text and link, and closes back to the scroll 
     await openObject(page, banner.id)
     await expect(panel).toBeVisible()
     await expect(panel.getByRole('heading', { name: banner.heading, exact: true })).toBeVisible()
+    // The panel stays labelled by the name, not by the eyebrow above it.
+    await expect(panel).toHaveAccessibleName(banner.heading)
+    expect(await panel.locator('.focus-kicker').textContent()).toMatch(banner.kicker)
+    await expect(panel.locator('.focus-points > li')).toHaveCount(banner.points)
     const link = panel.getByRole('link')
     if (banner.href) await expect(link).toHaveAttribute('href', banner.href)
     else await expect(link).toHaveCount(0)
