@@ -35,6 +35,8 @@ const PANEL_TEXT = [
   'Bakersfield',
   'Head-to-head competitive programming',
   'Excellence Awards',
+  'Rice Residency',
+  'Cal State grant',
   'Muscle ups',
   'Half marathon',
   '100 yd freestyle',
